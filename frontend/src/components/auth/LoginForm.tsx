@@ -7,17 +7,9 @@ import { Link } from 'react-router'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
-import {
-	Card,
-	CardContent,
-	CardDescription,
-	CardFooter,
-	CardHeader,
-	CardTitle,
-} from '@/components/ui/card'
+import { Card, CardContent, CardFooter } from '@/components/ui/card'
 import { Checkbox } from '@/components/ui/checkbox'
-import { AtSign, Lock, LogIn, Github, Twitter } from 'lucide-react'
-import { Separator } from '@/components/ui/separator'
+import { AtSign, Lock, LogIn } from 'lucide-react'
 import { useNavigate } from 'react-router'
 
 export default function LoginForm() {
@@ -41,12 +33,6 @@ export default function LoginForm() {
 
 	return (
 		<Card className="w-full">
-			<CardHeader>
-				<CardTitle>Sign In</CardTitle>
-				<CardDescription>
-					Enter your credentials to access your account
-				</CardDescription>
-			</CardHeader>
 			<CardContent>
 				<form onSubmit={handleSubmit} className="space-y-4">
 					<div className="space-y-2">
@@ -114,38 +100,6 @@ export default function LoginForm() {
 						)}
 					</Button>
 				</form>
-
-				<div className="mt-6">
-					<div className="relative">
-						<div className="absolute inset-0 flex items-center">
-							<Separator className="w-full" />
-						</div>
-						<div className="relative flex justify-center text-xs uppercase">
-							<span className="bg-card px-2 text-muted-foreground">
-								Or continue with
-							</span>
-						</div>
-					</div>
-
-					<div className="mt-6 grid grid-cols-2 gap-4">
-						<Button
-							variant="outline"
-							type="button"
-							className="w-full"
-						>
-							<Github className="mr-2 h-4 w-4" />
-							Github
-						</Button>
-						<Button
-							variant="outline"
-							type="button"
-							className="w-full"
-						>
-							<Twitter className="mr-2 h-4 w-4" />
-							Twitter
-						</Button>
-					</div>
-				</div>
 			</CardContent>
 			<CardFooter className="flex justify-center border-t p-6">
 				<p className="text-sm text-muted-foreground">
