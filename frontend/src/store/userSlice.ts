@@ -1,13 +1,14 @@
+import { IUser } from '@/types/User.type'
 import { createSlice } from '@reduxjs/toolkit'
 import type { PayloadAction } from '@reduxjs/toolkit'
 
 export interface UserSliceState {
 	isAuthenticated: boolean
-	user: unknown | null
+	user: IUser | null
 }
 
 const initialState: UserSliceState = {
-	isAuthenticated: false,
+	isAuthenticated: true,
 	user: null,
 }
 
@@ -15,9 +16,12 @@ export const counterSlice = createSlice({
 	name: 'user',
 	initialState,
 	reducers: {
-		login: (state, action: PayloadAction<unknown>) => {
+		login: (
+			state,
+			action: PayloadAction<{ email: string; password: string }>,
+		) => {
 			state.isAuthenticated = true
-			state.user = action.payload
+			state.user = null
 		},
 		logout: (state) => {
 			state.isAuthenticated = false
