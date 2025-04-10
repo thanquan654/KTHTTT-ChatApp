@@ -13,14 +13,7 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Avatar } from '@/components/ui/avatar'
-import {
-	Search,
-	Users,
-	X,
-	CheckCircle2,
-	AlertCircle,
-	Camera,
-} from 'lucide-react'
+import { Search, Users, X, CheckCircle2, AlertCircle } from 'lucide-react'
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { Badge } from '@/components/ui/badge'
@@ -163,6 +156,7 @@ export function CreateGroupDialog({
 				setStatus('idle')
 				onOpenChange(false)
 			}, 2000)
+			// eslint-disable-next-line @typescript-eslint/no-unused-vars
 		} catch (error) {
 			setStatus('error')
 			setStatusMessage('Failed to create group. Please try again.')
