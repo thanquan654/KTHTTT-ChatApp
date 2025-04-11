@@ -1,10 +1,11 @@
 import redis # type: ignore
 from flask import current_app, g # type: ignore
+from .helpers.auth.config import settings
 
 def get_redis() -> redis.Redis | None:
     """Lấy Redis client từ application context g nếu có, hoặc tạo mới."""
     if 'redis_client' not in g:
-        redis_url = current_app.config['REDIS_URL']
+        redis_url = settings.REDIS_URL
         try:
             # decode_responses=True để làm việc với string thay vì bytes
             g.redis_client = redis.from_url(redis_url, decode_responses=True)
@@ -29,4 +30,3 @@ def close_redis_client(e=None):
 
 def init_app(app):
     """Đăng ký hàm close_redis_client để chạy khi teardown app context."""
-    app.teardown_appcontext(close_redis_client)

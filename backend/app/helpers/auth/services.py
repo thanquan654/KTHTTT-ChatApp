@@ -3,12 +3,12 @@ import jwt # type: ignore
 import uuid
 from datetime import datetime, timedelta, timezone
 from typing import Optional, Dict, Any, List
-
-from models.user import UserCreate, UserInDB, UserPublic
-from db.mongo_client import get_db
-from db.redis_client import get_redis
-from core.config import settings
+from ...models.user import UserCreate, UserInDB, UserPublic
+from ...redis import get_redis
+from .config import settings
 from bson import ObjectId # type: ignore
+from ...mongo import get_mongo_client
+import pymongo
 
 # --- Password Hashing ---
 def hash_password(password: str) -> str:
@@ -35,7 +35,6 @@ def create_access_token(user: UserInDB) -> str:
     expire = datetime.now(timezone.utc) + timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
     to_encode = {
         "user_id": str(user.id), # Subject là user_id dạng string
-        "username": user.username,
         "roles": user.roles,
         "exp": expire,
         "iat": datetime.now(timezone.utc),
@@ -99,23 +98,10 @@ def is_token_blocklisted(jti: str) -> bool:
 
 
 # --- User CRUD Operations ---
-def get_user_by_username(username: str) -> Optional[UserInDB]:
-    """Lấy user từ DB theo username."""
-    db = get_db()
-    if not db: return None
-    user_data = db.users.find_one({"username": username})
-    if user_data:
-        try:
-            return UserInDB(**user_data)
-        except Exception as e: # Handle Pydantic validation error etc.
-            print(f"Error validating user data from DB for {username}: {e}")
-            return None
-    return None
 
 def get_user_by_email(email: str) -> Optional[UserInDB]:
     """Lấy user từ DB theo email."""
-    db = get_db()
-    if not db: return None
+    db  = get_mongo_client().Chatapp
     user_data = db.users.find_one({"email": email})
     if user_data:
         try:
@@ -127,8 +113,8 @@ def get_user_by_email(email: str) -> Optional[UserInDB]:
 
 def get_user_by_id(user_id: str) -> Optional[UserInDB]:
     """Lấy user từ DB theo ID (dạng string)."""
-    db = get_db()
-    if not db or not ObjectId.is_valid(user_id):
+    db = get_mongo_client().Chatapp
+    if db != None or not ObjectId.is_valid(user_id):
         return None
     user_data = db.users.find_one({"_id": ObjectId(user_id)})
     if user_data:
@@ -141,11 +127,10 @@ def get_user_by_id(user_id: str) -> Optional[UserInDB]:
 
 def create_db_user(user_in: UserCreate) -> Optional[UserInDB]:
     """Tạo user mới trong DB."""
-    db = get_db()
-    if not db: return None
+    db = db = get_mongo_client().Chatapp
     hashed_pass = hash_password(user_in.password)
     # Tạo dict để insert, không bao gồm password gốc, thêm hashed_password và thời gian
-    user_doc = user_in.dict(exclude={"password"})
+    user_doc = user_in.model_dump(exclude={"password"})
     user_doc["hashed_password"] = hashed_pass
     user_doc["created_at"] = datetime.utcnow()
     user_doc["updated_at"] = datetime.utcnow()
@@ -160,9 +145,9 @@ def create_db_user(user_in: UserCreate) -> Optional[UserInDB]:
         else:
             print("Failed to retrieve newly created user.")
             return None
-    except pymongo.errors.DuplicateKeyError: # type: ignore
-        print(f"Cannot create user. Username or email already exists.") # Giả sử có unique index
-        return None
+    # except pymongo.errors.DuplicateKeyError: # type: ignore
+    #     print(f"Cannot create user. Username or email already exists.") # Giả sử có unique index
+    #     return None
     except Exception as e:
         print(f"Error creating user in DB: {e}")
         return None

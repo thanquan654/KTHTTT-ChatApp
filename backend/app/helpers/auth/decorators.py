@@ -2,13 +2,13 @@ import functools
 from flask import request, jsonify, g # type: ignore
 from typing import List, Callable
 
-from auth.services import decode_token, is_token_blocklisted, get_user_by_id
-from models.user import UserPublic, TokenPayload # Import model để gõ type hint
+from .services import decode_token, is_token_blocklisted, get_user_by_id
+from ...models.user import UserPublic, TokenPayload # Import model để gõ type hint
 
 # Thêm UserPublic vào g để các route có thể sử dụng thông tin user an toàn
 def set_current_user(user_in_db):
      if user_in_db:
-         g.current_user = UserPublic.from_orm(user_in_db)
+         g.current_user = UserPublic.model_validate(user_in_db)
      else:
          g.current_user = None
 
