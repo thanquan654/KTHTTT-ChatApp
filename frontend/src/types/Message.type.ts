@@ -3,5 +3,6 @@ export interface IMessage {
 	groupId: string
 	senderId: string
 	content: string
+	readBy: string[]
 	createdAt: string
 }

@@ -3,5 +3,6 @@ export interface IRoom {
 	name: string
 	lastMessage: string
 	members: string[]
+	type: 'private' | 'group'
 	createdAt: string
 }
