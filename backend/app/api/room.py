@@ -2,10 +2,9 @@ from flask import Blueprint, request, jsonify
 from datetime import datetime
 from ..mongo import get_mongo_client
 from bson import ObjectId
-from ..helpers import convert_id
+from ..helpers import convert_id, mongo_to_json
 
-room_bp = Blueprint("message_api", __name__, url_prefix="/api/room")
-
+room_bp = Blueprint("room_api", __name__, url_prefix="/api/room")
 
 # GET /api/room - Get user's groups
 @room_bp.route("/", methods=["GET"])
@@ -15,8 +14,8 @@ def get_user_room():
     if not user_id:
         return jsonify({"error": "Thiếu userId"}), 400
 
-    room_list = list(db.rooms.find({"members": {"$in": [user_id]}}))
-    return jsonify([convert_id(room) for room in room_list])
+    room_list = list(db.rooms.find({"members": {"$in": [ObjectId(user_id)]}}))
+    return jsonify(mongo_to_json([convert_id(room) for room in room_list]))
 
 # GET /api/room/<room_id> - Get group details and messages
 @room_bp.route("/<room_id>", methods=["GET"])
@@ -57,20 +56,20 @@ def create_group():
     members = data.get("members")
     type = data.get("type")
 
-    if not name or not isinstance(members, list):
+    if not name or not isinstance(members, list) or not type:
         return jsonify({"error": "Thiếu tên hoặc members"}), 400
 
     new_group = {
         "name": name,
         'type': type,
         "lastMessage": "",
-        "members": members,
-        "createdAt": datetime.now().isoformat()
+        "members": [ObjectId(member) for member in members],
+        "createdAt": datetime.now()
     }
 
     result = db.rooms.insert_one(new_group)
     new_group["_id"] = str(result.inserted_id)
-    return jsonify(new_group), 201
+    return jsonify(mongo_to_json(new_group)), 201
 
 # POST /api/room/<group_id>/join - Join group
 @room_bp.route("/<room_id>/join", methods=["POST"])
@@ -82,7 +81,7 @@ def join_group(room_id):
 
     result = db.rooms.update_one(
         {"_id": ObjectId(room_id)},
-        {"$addToSet": {"members": user_id}}
+        {"$addToSet": {"members": ObjectId(user_id)}}
     )
 
     if result.matched_count == 0:
@@ -99,7 +98,7 @@ def leave_group(room_id):
 
     result = db.rooms.update_one(
         {"_id": ObjectId(room_id)},
-        {"$pull": {"members": user_id}}
+        {"$pull": {"members": ObjectId(user_id)}}
     )
 
     if result.matched_count == 0:
