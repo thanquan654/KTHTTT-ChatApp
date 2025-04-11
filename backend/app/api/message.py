@@ -2,7 +2,7 @@ from flask import Blueprint, request, jsonify
 from datetime import datetime
 from ..mongo import get_mongo_client
 from bson import ObjectId
-from ..helpers import convert_id
+from ..helpers import convert_id, mongo_to_json
 
 message_bp = Blueprint("message_api", __name__, url_prefix="/api/message")
 
@@ -10,19 +10,19 @@ message_bp = Blueprint("message_api", __name__, url_prefix="/api/message")
 def send_message():
     db = get_mongo_client().Chatapp
     data = request.json
-    group_id = data.get("groupId")
+    room_id = data.get("roomId")
     sender_id = data.get("senderId")
     content = data.get("content")
 
-    if not group_id or not sender_id or not content:
+    if not room_id or not sender_id or not content:
         return jsonify({"error": "Thiếu groupId, senderId hoặc content", "errorCode": "MISSING_REQUIRED_FIELDS"}), 400
 
     new_message = {
-        "groupId": group_id,
-        "senderId": sender_id,
+        "roomId": ObjectId(room_id),
+        "senderId": ObjectId(sender_id),
         "content": content,
         "readBy": [],
-        "createdAt": datetime.now().isoformat()
+        "createdAt": datetime.now()
     }
 
     result = db.messages.insert_one(new_message)
@@ -31,7 +31,7 @@ def send_message():
     # TODO: Publish event 'new_message' to Redis Pub/Sub for real-time push
     # You will add this part when integrating with Websocket and Redis
 
-    return jsonify(convert_id(new_message)), 201
+    return jsonify(mongo_to_json(convert_id(new_message))), 201
 
 # POST /api/message/<message_id>/read - Mark message as read
 @message_bp.route("/<message_id>/read", methods=["POST"])
@@ -50,7 +50,7 @@ def mark_message_read(message_id):
 
     result = db.messages.update_one(
         {"_id": ObjectId(message_id)},
-        {"$addToSet": {"readBy": user_id}} # Use $addToSet to avoid duplicates
+        {"$addToSet": {"readBy": ObjectId(user_id)}} # Use $addToSet to avoid duplicates
     )
 
     if result.modified_count == 0: # Check if update actually happened (should happen unless already read - handled above)
