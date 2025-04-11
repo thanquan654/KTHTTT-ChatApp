@@ -2,12 +2,10 @@ from flask import Blueprint, request, jsonify
 from datetime import datetime
 from ..mongo import get_mongo_client
 from bson import ObjectId
+from ..helpers import convert_id
 
 room_bp = Blueprint("message_api", __name__, url_prefix="/api/room")
 
-def convert_id(room):
-    room["_id"] = str(room["_id"])
-    return room
 
 # GET /api/room - Get user's groups
 @room_bp.route("/", methods=["GET"])
@@ -67,7 +65,7 @@ def create_group():
         'type': type,
         "lastMessage": "",
         "members": members,
-        "createdAt": datetime.now()
+        "createdAt": datetime.now().isoformat()
     }
 
     result = db.rooms.insert_one(new_group)
