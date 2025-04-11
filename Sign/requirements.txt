@@ -1,0 +1,7 @@
+Flask
+pymongo
+redis
+python-dotenv
+PyJWT
+bcrypt
+pydantic[nguyentienthinh3004@gmail.com]
