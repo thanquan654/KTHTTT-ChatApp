@@ -28,7 +28,7 @@ def get_room_detail(room_id):
     if not room:
         return jsonify({"error": "Group không tồn tại", "errorCode": "GROUP_NOT_FOUND"}), 404
 
-    query = {"groupId": room_id}
+    query = {"roomId": ObjectId(room_id)}
     if before_timestamp_str:
         before_timestamp = datetime.fromisoformat(before_timestamp_str.replace('Z', '+00:00'))
         query["createdAt"] = {"$lt": before_timestamp}
@@ -42,10 +42,10 @@ def get_room_detail(room_id):
 
     messages.reverse()
 
-    return jsonify({
-        "room": convert_id(room),
-        "messages": [convert_id(msg) for msg in messages]
-    })
+    return jsonify(mongo_to_json({
+        "room": (room),
+        "messages": [(msg) for msg in messages]
+    }))
 
 # POST /api/room - Create new room
 @room_bp.route("/", methods=["POST"])
