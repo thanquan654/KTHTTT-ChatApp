@@ -1,0 +1,15 @@
+FLASK_ENV=development
+FLASK_APP=app.py
+SECRET_KEY=your_very_strong_flask_secret_key_here # Key bí mật cho Flask (vd: session)
+
+# MongoDB
+MONGODB_URI=mongodb://localhost:27017/
+MONGODB_DB_NAME=chatapp_auth_flask_redis
+
+# Redis
+REDIS_URL=redis://localhost:6379/0
+
+# JWT
+JWT_SECRET_KEY=your_very_strong_jwt_secret_key_here # Key bí mật RIÊNG cho JWT
+JWT_ALGORITHM=HS256
+JWT_ACCESS_TOKEN_EXPIRE_MINUTES=30
