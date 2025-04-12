@@ -3,6 +3,7 @@ from typing import Optional, List, Any
 from datetime import datetime
 from bson import ObjectId # type: ignore
 from pydantic_core import core_schema
+from ..helpers import random_avatar
 
 class PyObjectId(str):
     @classmethod
@@ -49,6 +50,7 @@ class UserInDB(UserBase):
     roles: List[str] = Field(default=["user"]) # Phân quyền: mặc định là 'user'
     created_at: datetime = Field(default_factory=datetime.utcnow)
     updated_at: datetime = Field(default_factory=datetime.utcnow)
+    avartar: str = Field(default_factory=random_avatar)
 
     model_config = ConfigDict(
         populate_by_name=True,

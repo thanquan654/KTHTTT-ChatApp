@@ -1,5 +1,4 @@
-'use client'
-
+/* eslint-disable @typescript-eslint/no-unused-vars */
 import { useState } from 'react'
 import {
 	Dialog,
@@ -17,99 +16,54 @@ import { Search, Users, X, CheckCircle2, AlertCircle } from 'lucide-react'
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { Badge } from '@/components/ui/badge'
+import { IUser } from '@/types/User.type'
+import { useSelector } from 'react-redux'
+import { RootState } from '@/store/store'
+import axios from 'axios'
 
 // Mock contacts data
-const mockContacts = [
-	{
-		id: '1',
-		name: 'Emma Thompson',
-		avatar: '/placeholder.svg?height=40&width=40',
-		status: 'online',
-	},
-	{
-		id: '2',
-		name: 'James Wilson',
-		avatar: '/placeholder.svg?height=40&width=40',
-		status: 'online',
-	},
-	{
-		id: '3',
-		name: 'Sophia Martinez',
-		avatar: '/placeholder.svg?height=40&width=40',
-		status: 'offline',
-	},
-	{
-		id: '4',
-		name: 'Liam Johnson',
-		avatar: '/placeholder.svg?height=40&width=40',
-		status: 'away',
-	},
-	{
-		id: '5',
-		name: 'Olivia Davis',
-		avatar: '/placeholder.svg?height=40&width=40',
-		status: 'online',
-	},
-	{
-		id: 'user1',
-		name: 'Alex Johnson',
-		avatar: '/placeholder.svg?height=40&width=40',
-		status: 'online',
-	},
-	{
-		id: 'user2',
-		name: 'Taylor Smith',
-		avatar: '/placeholder.svg?height=40&width=40',
-		status: 'offline',
-	},
-]
-
-type Contact = {
-	id: string
-	name: string
-	avatar: string
-	status: string
-}
-
-type Group = {
-	id: string
-	name: string
-	members: Contact[]
-}
-
 type CreateGroupDialogProps = {
 	open: boolean
 	onOpenChange: (open: boolean) => void
-	onGroupCreated?: (group: Group) => void
+}
+
+const uniqueById = (arr: IUser[]) => {
+	const map = new Map()
+	arr.forEach((item) => map.set(item._id, item))
+	return Array.from(map.values())
 }
 
 export function CreateGroupDialog({
 	open,
 	onOpenChange,
-	onGroupCreated,
 }: CreateGroupDialogProps) {
 	const [groupName, setGroupName] = useState('')
 	const [searchQuery, setSearchQuery] = useState('')
-	const [selectedMembers, setSelectedMembers] = useState<Contact[]>([])
+	const [selectedMembers, setSelectedMembers] = useState<IUser[]>([])
 	const [isCreating, setIsCreating] = useState(false)
 	const [status, setStatus] = useState<'idle' | 'success' | 'error'>('idle')
 	const [statusMessage, setStatusMessage] = useState('')
-
-	// Filter contacts based on search query
-	const filteredContacts = mockContacts.filter(
-		(contact) =>
-			contact.name.toLowerCase().includes(searchQuery.toLowerCase()) &&
-			!selectedMembers.some((member) => member.id === contact.id),
+	const currentUser = useSelector((state: RootState) => state.user.user)
+	const roomList = useSelector((state: RootState) => state.room.roomList)
+	const friendList = uniqueById(
+		roomList
+			.map((room) => room.members)
+			.flat()
+			.filter((member) => member._id !== currentUser?._id),
 	)
 
-	const handleSelectMember = (contact: Contact) => {
-		setSelectedMembers((prev) => [...prev, contact])
+	const filteredContacts = friendList.filter((contact) => {
+		return contact.name.toLowerCase().includes(searchQuery.toLowerCase())
+	})
+
+	const handleSelectMember = (contact: IUser) => {
+		setSelectedMembers((prev) => uniqueById([...prev, contact]))
 		setSearchQuery('')
 	}
 
 	const handleRemoveMember = (contactId: string) => {
 		setSelectedMembers((prev) =>
-			prev.filter((member) => member.id !== contactId),
+			prev.filter((member) => member._id !== contactId),
 		)
 	}
 
@@ -130,33 +84,19 @@ export function CreateGroupDialog({
 		setStatus('idle')
 
 		try {
-			// This would be an API call in a real application
-			await new Promise((resolve) => setTimeout(resolve, 1500)) // Simulate network delay
-
-			const newGroup: Group = {
-				id: `group-${Date.now()}`,
-				name: groupName,
-				members: selectedMembers,
-			}
-
-			setStatus('success')
-			setStatusMessage(
-				`Group "${groupName}" has been created successfully!`,
+			const respone = await axios.post(
+				'http://127.0.0.1:5000/api/room/',
+				{
+					name: groupName,
+					members: [
+						...selectedMembers.map((member) => member._id),
+						currentUser?._id as string,
+					],
+					type: 'group',
+				},
 			)
 
-			// Notify parent component
-			if (onGroupCreated) {
-				onGroupCreated(newGroup)
-			}
-
-			// Reset form after successful creation
-			setTimeout(() => {
-				setGroupName('')
-				setSelectedMembers([])
-				setStatus('idle')
-				onOpenChange(false)
-			}, 2000)
-			// eslint-disable-next-line @typescript-eslint/no-unused-vars
+			console.log('🚀 ~ respone:', respone)
 		} catch (error) {
 			setStatus('error')
 			setStatusMessage('Failed to create group. Please try again.')
@@ -198,7 +138,7 @@ export function CreateGroupDialog({
 							<div className="flex flex-wrap gap-2 mt-2">
 								{selectedMembers.map((member) => (
 									<Badge
-										key={member.id}
+										key={member._id}
 										variant="secondary"
 										className="pl-1 pr-1"
 									>
@@ -206,7 +146,7 @@ export function CreateGroupDialog({
 											<img
 												src={
 													member.avatar ||
-													'/placeholder.svg'
+													'https://via.placeholder.com/150'
 												}
 												alt={member.name}
 												className="h-full w-full object-cover"
@@ -220,7 +160,7 @@ export function CreateGroupDialog({
 											size="icon"
 											className="h-4 w-4 p-0 hover:bg-transparent"
 											onClick={() =>
-												handleRemoveMember(member.id)
+												handleRemoveMember(member._id)
 											}
 										>
 											<X className="h-3 w-3" />
@@ -245,12 +185,12 @@ export function CreateGroupDialog({
 						</div>
 					</div>
 
-					{filteredContacts.length > 0 && searchQuery && (
+					{friendList.length > 0 && searchQuery && (
 						<ScrollArea className="h-[200px] border rounded-md p-2">
 							<div className="space-y-2">
 								{filteredContacts.map((contact) => (
 									<div
-										key={contact.id}
+										key={contact._id}
 										className="flex items-center justify-between p-2 hover:bg-muted rounded-md transition-colors cursor-pointer"
 										onClick={() =>
 											handleSelectMember(contact)

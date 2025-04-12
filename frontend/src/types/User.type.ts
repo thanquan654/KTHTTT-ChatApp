@@ -1,9 +1,9 @@
 export interface IUser {
 	_id: string
-	username: string
+	name: string
 	email: string
-	password: string
-	status: string
-	lastSeen: string
-	typingIn: string
+	status?: string
+	lastSeen?: string
+	avatar?: string
+	typingIn?: string
 }

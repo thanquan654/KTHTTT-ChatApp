@@ -1,5 +1,9 @@
-from flask import Blueprint, request, jsonify
+import re
+from flask import Blueprint, g, request, jsonify
 from datetime import datetime
+
+from ..helpers.auth.decorators import token_required
+from ..models.user import UserInDB, UserPublic
 from ..mongo import get_mongo_client
 from bson import ObjectId
 from ..helpers import convert_id, mongo_to_json
@@ -15,6 +19,14 @@ def get_user_room():
         return jsonify({"error": "Thiếu userId"}), 400
 
     room_list = list(db.rooms.find({"members": {"$in": [ObjectId(user_id)]}}))
+
+    for room in room_list:
+        members_ids = room.get("members")
+        members = list(db.users.find({"_id": {"$in": members_ids}}))
+        room = convert_id(room)
+        room["members"] = mongo_to_json([convert_id(member) for member in members])
+
+
     return jsonify(mongo_to_json([convert_id(room) for room in room_list]))
 
 # GET /api/room/<room_id> - Get group details and messages
@@ -27,6 +39,11 @@ def get_room_detail(room_id):
     room = db.rooms.find_one({"_id": ObjectId(room_id)})
     if not room:
         return jsonify({"error": "Group không tồn tại", "errorCode": "GROUP_NOT_FOUND"}), 404
+
+    members_ids = room.get("members")
+    members = list(db.users.find({"_id": {"$in": members_ids}}))
+    room = convert_id(room)
+    room["members"] = mongo_to_json([convert_id(member) for member in members])
 
     query = {"roomId": ObjectId(room_id)}
     if before_timestamp_str:
@@ -104,3 +121,53 @@ def leave_group(room_id):
     if result.matched_count == 0:
         return jsonify({"error": "Group không tồn tại"}), 404
     return jsonify({"message": "Đã rời khỏi group"})
+
+@room_bp.route('/users/search', methods=['GET'])
+# @token_required # Chỉ user đã đăng nhập mới được tìm kiếm
+def search_users():
+    """Endpoint tìm kiếm user theo username."""
+    db = get_mongo_client().Chatapp
+    query = request.args.get('q', '')
+
+    if not query or len(query) < 2:
+        return jsonify({"message": "Search query must be at least 2 characters long"}), 400
+
+    # # Lấy user ID hiện tại từ context g (được set bởi @token_required)
+    # current_user: UserPublic = g.current_user
+    # if not current_user:
+    #      # Lỗi này không nên xảy ra nếu @token_required hoạt động đúng
+    #     return jsonify({"message": "Could not identify current user"}), 401
+
+    # Gọi hàm service để tìm kiếm
+    try:
+        regex_query = re.compile(f'.*{re.escape(query)}.*', re.IGNORECASE)
+
+        # Chỉ lấy các trường cần thiết từ DB để tạo UserPublic (tối ưu)
+        projection = {
+            "_id": 1,
+            "name": 1,
+            "email": 1, # Lấy cả email vì UserPublic có thể cần
+            "roles": 1,
+            "created_at": 1
+            # Không lấy hashed_password
+        }
+
+        cursor = db.users.find(
+            {
+                "name": regex_query,
+                # "_id": {"$ne": current_oid} # $ne: not equal - Loại trừ user hiện tại
+            },
+            projection # Chỉ lấy các trường đã định nghĩa
+        )
+
+        users_found = []
+        for user_data in cursor:
+            try:
+                users_found.append(user_data)
+            except Exception as e:
+                print(f"Error validating user data during search for user {user_data.get('_id')}: {e}")
+    except Exception as e:
+        print(f"Error during user search: {e}")
+        return jsonify({"message": "An error occurred during search"}), 500
+
+    return jsonify(mongo_to_json(users_found)), 200

@@ -1,8 +1,5 @@
-'use client'
-
 import type React from 'react'
-
-import { useState } from 'react'
+import { useEffect } from 'react'
 import { Link } from 'react-router'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -11,25 +8,34 @@ import { Card, CardContent, CardFooter } from '@/components/ui/card'
 import { Checkbox } from '@/components/ui/checkbox'
 import { AtSign, Lock, LogIn } from 'lucide-react'
 import { useNavigate } from 'react-router'
+import { useSelector } from 'react-redux'
+import { RootState } from '@/store/store'
 
-export default function LoginForm() {
-	const [email, setEmail] = useState('')
-	const [password, setPassword] = useState('')
-	const [isLoading, setIsLoading] = useState(false)
+interface IProps {
+	data: {
+		email: string
+		password: string
+	}
+	handleChange: (e: React.ChangeEvent<HTMLInputElement>) => void
+	handleLogin: () => void
+}
+
+export default function LoginForm({ data, handleChange, handleLogin }: IProps) {
 	const navigator = useNavigate()
+	const { status, error, isAuthenticated } = useSelector(
+		(state: RootState) => state.user,
+	)
 
 	const handleSubmit = async (e: React.FormEvent) => {
 		e.preventDefault()
-		setIsLoading(true)
-
-		// Simulate authentication delay
-		setTimeout(() => {
-			// In a real app, you would validate credentials with your backend
-			localStorage.setItem('isAuthenticated', 'true')
-			setIsLoading(false)
-			navigator('/')
-		}, 1500)
+		handleLogin()
 	}
+
+	useEffect(() => {
+		if (status === 'succeeded' && isAuthenticated) {
+			navigator('/')
+		}
+	}, [status, isAuthenticated, navigator])
 
 	return (
 		<Card className="w-full">
@@ -42,9 +48,10 @@ export default function LoginForm() {
 							<Input
 								id="email"
 								type="email"
+								name="email"
 								placeholder="name@example.com"
-								value={email}
-								onChange={(e) => setEmail(e.target.value)}
+								value={data.email}
+								onChange={handleChange}
 								className="pl-10"
 								required
 							/>
@@ -65,9 +72,10 @@ export default function LoginForm() {
 							<Input
 								id="password"
 								type="password"
+								name="password"
 								placeholder="••••••••"
-								value={password}
-								onChange={(e) => setPassword(e.target.value)}
+								value={data.password}
+								onChange={handleChange}
 								className="pl-10"
 								required
 							/>
@@ -85,9 +93,9 @@ export default function LoginForm() {
 					<Button
 						type="submit"
 						className="w-full"
-						disabled={isLoading}
+						disabled={status === 'loading'}
 					>
-						{isLoading ? (
+						{status === 'loading' ? (
 							<span className="flex items-center gap-2">
 								<span className="h-4 w-4 animate-spin rounded-full border-2 border-current border-t-transparent" />
 								Signing in...
@@ -99,6 +107,7 @@ export default function LoginForm() {
 							</span>
 						)}
 					</Button>
+					{error && <div className="text-red-500 mt-2">{error}</div>}
 				</form>
 			</CardContent>
 			<CardFooter className="flex justify-center border-t p-6">

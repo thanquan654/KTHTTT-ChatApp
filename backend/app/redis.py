@@ -1,13 +1,12 @@
-import redis # type: ignore
-from flask import current_app, g # type: ignore
+import redis
+from flask import current_app, g
 from .helpers.auth.config import settings
 
-def get_redis() -> redis.Redis | None:
-    """Lấy Redis client từ application context g nếu có, hoặc tạo mới."""
+def get_redis():
+    """Lấy Redis client từ application context"""
     if 'redis_client' not in g:
         redis_url = settings.REDIS_URL
         try:
-            # decode_responses=True để làm việc với string thay vì bytes
             g.redis_client = redis.from_url(redis_url, decode_responses=True)
             g.redis_client.ping()
             print("Redis client connected.")
@@ -20,13 +19,10 @@ def get_redis() -> redis.Redis | None:
     return g.redis_client
 
 def close_redis_client(e=None):
-    """Đóng Redis client khi app context kết thúc (thường không cần thiết với pool)."""
-    client = g.pop('redis_client', None)
-    # redis-py tự quản lý pool, không cần đóng explicit connection trừ khi cần
-    # if client is not None:
-    #     client.close() # Không cần thiết
-    #     print("Redis connection closed.")
-    pass # Chỉ cần pop khỏi g
-
-def init_app(app):
-    """Đăng ký hàm close_redis_client để chạy khi teardown app context."""
+    """Đóng Redis client khi request kết thúc"""
+    redis_client = g.pop('redis_client', None)
+    if redis_client is not None:
+        try:
+            redis_client.close()
+        except:
+            pass

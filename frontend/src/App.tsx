@@ -1,4 +1,4 @@
-import { getRoomList } from '@/store/roomSlice'
+import { fetchUserRoomsAndSelectFirst } from '@/store/roomSlice'
 import { AppDispatch, RootState } from '@/store/store'
 import { useEffect } from 'react'
 import { useDispatch, useSelector } from 'react-redux'
@@ -11,8 +11,8 @@ function App() {
 		(state: RootState) => state.user.isAuthenticated,
 	)
 	const user = useSelector((state: RootState) => state.user.user)
-	const selectedRoom = useSelector(
-		(state: RootState) => state.room.selectedRoom,
+	const selectedRoomId = useSelector(
+		(state: RootState) => state.room.selectedRoomId,
 	)
 
 	useEffect(() => {
@@ -20,10 +20,19 @@ function App() {
 			navigator('/login')
 		} else {
 			// get chat room current user is in
-			if (user) dispatch(getRoomList({ currentUser: user?._id }))
-			navigator(`/chat/${selectedRoom}`)
+			if (user)
+				dispatch(fetchUserRoomsAndSelectFirst({ userId: user._id }))
 		}
-	}, [dispatch, isAuthenticated, navigator, selectedRoom, user])
+	}, [dispatch, isAuthenticated, navigator, selectedRoomId, user])
+
+	useEffect(() => {
+		if (isAuthenticated && selectedRoomId) {
+			console.log(
+				`Selected room ID received: ${selectedRoomId}. Navigating...`,
+			)
+			navigator(`/chat/${selectedRoomId}`)
+		}
+	}, [isAuthenticated, navigator, selectedRoomId])
 
 	return <></>
 }

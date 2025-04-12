@@ -1,3 +1,5 @@
+/* eslint-disable @typescript-eslint/no-unused-vars */
+/* eslint-disable @typescript-eslint/no-explicit-any */
 'use client'
 
 import { useState } from 'react'
@@ -15,87 +17,28 @@ import { Label } from '@/components/ui/label'
 import { Avatar } from '@/components/ui/avatar'
 import { Search, UserPlus, AlertCircle, CheckCircle2 } from 'lucide-react'
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
-
-type User = {
-	id: string
-	name: string
-	email: string
-	avatar: string
-	status: string
-}
-
-// Mock API call to search users
-const searchUsers = async (query: string): Promise<User[]> => {
-	// This would be an API call in a real application
-	// For demo purposes, we'll return mock data
-	await new Promise((resolve) => setTimeout(resolve, 1000)) // Simulate network delay
-
-	// Mock users data
-	const allUsers = [
-		{
-			id: 'user1',
-			name: 'Alex Johnson',
-			email: 'alex.johnson@example.com',
-			avatar: '/placeholder.svg?height=40&width=40',
-			status: 'online',
-		},
-		{
-			id: 'user2',
-			name: 'Taylor Smith',
-			email: 'taylor.smith@example.com',
-			avatar: '/placeholder.svg?height=40&width=40',
-			status: 'offline',
-		},
-		{
-			id: 'user3',
-			name: 'Jordan Lee',
-			email: 'jordan.lee@example.com',
-			avatar: '/placeholder.svg?height=40&width=40',
-			status: 'online',
-		},
-		{
-			id: 'user4',
-			name: 'Casey Brown',
-			email: 'casey.brown@example.com',
-			avatar: '/placeholder.svg?height=40&width=40',
-			status: 'away',
-		},
-		{
-			id: 'user5',
-			name: 'Riley Wilson',
-			email: 'riley.wilson@example.com',
-			avatar: '/placeholder.svg?height=40&width=40',
-			status: 'online',
-		},
-	]
-
-	if (!query) return []
-
-	return allUsers.filter(
-		(user) =>
-			user.name.toLowerCase().includes(query.toLowerCase()) ||
-			user.email.toLowerCase().includes(query.toLowerCase()),
-	)
-}
+import { IUser } from '@/types/User.type'
+import axios from 'axios'
+import { useSelector } from 'react-redux'
+import { RootState } from '@/store/store'
 
 type AddContactDialogProps = {
 	open: boolean
 	onOpenChange: (open: boolean) => void
-	onContactAdded?: (contact: User) => void
 }
 
 export function AddContactDialog({
 	open,
 	onOpenChange,
-	onContactAdded,
 }: AddContactDialogProps) {
 	const [searchQuery, setSearchQuery] = useState('')
-	const [searchResults, setSearchResults] = useState<User[]>([])
+	const [searchResults, setSearchResults] = useState<IUser[]>([])
 	const [isSearching, setIsSearching] = useState(false)
-	const [selectedUser, setSelectedUser] = useState<User | null>(null)
+	const [selectedUser, setSelectedUser] = useState<IUser | null>(null)
 	const [isAdding, setIsAdding] = useState(false)
 	const [status, setStatus] = useState<'idle' | 'success' | 'error'>('idle')
 	const [statusMessage, setStatusMessage] = useState('')
+	const currentUser = useSelector((state: RootState) => state.user.user)
 
 	const handleSearch = async () => {
 		if (!searchQuery.trim()) return
@@ -105,13 +48,18 @@ export function AddContactDialog({
 		setStatus('idle')
 
 		try {
-			const results = await searchUsers(searchQuery)
-			setSearchResults(results)
-			if (results.length === 0) {
+			const results = await axios.get(
+				'http://127.0.0.1:5000/api/room/users/search',
+				{
+					params: { q: searchQuery },
+				},
+			)
+			setSearchResults(results.data)
+			if (results.data.length === 0) {
 				setStatus('error')
 				setStatusMessage('No users found. Try a different search term.')
 			}
-		} catch (error) {
+		} catch (error: any) {
 			setStatus('error')
 			setStatusMessage(
 				'An error occurred while searching. Please try again.',
@@ -121,22 +69,21 @@ export function AddContactDialog({
 		}
 	}
 
-	const handleAddContact = async (user: User) => {
+	const handleAddContact = async (user: IUser) => {
 		setSelectedUser(user)
 		setIsAdding(true)
 		setStatus('idle')
 
 		try {
 			// This would be an API call in a real application
-			await new Promise((resolve) => setTimeout(resolve, 1000)) // Simulate network delay
+			await axios.post('http://127.0.0.1:5000/api/room/', {
+				name: selectedUser?.name,
+				members: [selectedUser?._id, currentUser?._id],
+				type: 'private',
+			})
 
 			setStatus('success')
 			setStatusMessage(`${user.name} has been added to your contacts!`)
-
-			// Notify parent component
-			if (onContactAdded) {
-				onContactAdded(user)
-			}
 
 			// Reset form after successful addition
 			setTimeout(() => {
@@ -219,7 +166,7 @@ export function AddContactDialog({
 					<div className="max-h-[200px] overflow-y-auto space-y-2 border rounded-md p-2">
 						{searchResults.map((user) => (
 							<div
-								key={user.id}
+								key={user._id}
 								className="flex items-center justify-between p-2 hover:bg-muted rounded-md transition-colors"
 							>
 								<div className="flex items-center gap-3">
@@ -246,11 +193,12 @@ export function AddContactDialog({
 									size="sm"
 									onClick={() => handleAddContact(user)}
 									disabled={
-										isAdding && selectedUser?.id === user.id
+										isAdding &&
+										selectedUser?._id === user._id
 									}
 								>
 									{isAdding &&
-									selectedUser?.id === user.id ? (
+									selectedUser?._id === user._id ? (
 										<span className="flex items-center gap-1">
 											<span className="h-3 w-3 animate-spin rounded-full border-2 border-current border-t-transparent" />
 											Adding...

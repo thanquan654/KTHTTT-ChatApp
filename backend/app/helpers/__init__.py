@@ -1,4 +1,5 @@
 from bson import ObjectId
+import random
 
 
 def convert_id(item): # Hàm chung để convert ObjectId sang string
@@ -17,3 +18,15 @@ def mongo_to_json(data):
         return str(data)
     else:
         return data
+
+
+
+DEFAULT_AVATARS = [
+    'https://api.dicebear.com/9.x/adventurer/svg?seed=Brian',
+    'https://api.dicebear.com/9.x/adventurer/svg?seed=Aiden',
+    'https://api.dicebear.com/9.x/adventurer/svg?seed=Easton',
+    "https://api.dicebear.com/9.x/adventurer/svg?seed=Katherine",
+    "https://api.dicebear.com/9.x/adventurer/svg?seed=Destiny",
+]
+def random_avatar():
+    return random.choice(DEFAULT_AVATARS)

@@ -56,13 +56,11 @@ def login():
     access_token = services.create_access_token(user)
 
     # Trả về token
-    token_response = Token(access_token=access_token)
     return jsonify({
         "access_token": access_token,
         "token_type": "bearer", # Thông tin loại token (tiêu chuẩn)
         "user": user_public.model_dump(by_alias=True) # Trả về user public data
     }), 200
-
 
 @auth_bp.route('/logout', methods=['POST'])
 @token_required # Cần phải đăng nhập mới logout được
@@ -124,3 +122,22 @@ def logout():
         "message": f"Welcome Admin {admin_user.username}! This is the user list (to be implemented).",
         "users": [] # Thay bằng list user thật
         }), 200
+
+@auth_bp.route('/me', methods=['GET'])
+# @token_required # Decorator này xử lý toàn bộ việc xác thực
+def get_current_user_profile():
+    """Endpoint lấy thông tin của user đang đăng nhập dựa trên token."""
+    # Decorator @token_required đã:
+    # 1. Xác thực token từ header Authorization
+    # 2. Kiểm tra token hết hạn
+    # 3. Kiểm tra token trong blocklist (Redis)
+    # 4. Lấy user_id từ token
+    # 5. Lấy user từ DB và đặt vào g.current_user dưới dạng UserPublic
+
+    current_user_public: UserPublic = g.current_user # Lấy UserPublic từ context g
+
+    if current_user_public:
+        return jsonify(current_user_public.model_dump(by_alias=True)), 200
+    else:
+        print("ERROR: User not found in 'g' context despite token being valid in /users/me")
+        return jsonify({"message": "Could not retrieve user profile after authentication"}), 404 # Hoặc 500

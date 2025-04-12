@@ -1,7 +1,4 @@
-'use client'
-
 import type React from 'react'
-
 import { useState } from 'react'
 import { Link, useNavigate } from 'react-router'
 import { Button } from '@/components/ui/button'
@@ -11,52 +8,47 @@ import { Card, CardContent, CardFooter } from '@/components/ui/card'
 import { Checkbox } from '@/components/ui/checkbox'
 import { AtSign, Lock, User, UserPlus } from 'lucide-react'
 
-export default function SignupForm() {
-	const [formData, setFormData] = useState({
-		name: '',
-		email: '',
-		password: '',
-		confirmPassword: '',
-	})
+interface IProps {
+	data: {
+		name: string
+		email: string
+		password: string
+		confirmPassword: string
+	}
+	handleChange: (e: React.ChangeEvent<HTMLInputElement>) => void
+	handleSignup: () => void
+}
+
+export default function SignupForm({
+	data,
+	handleChange,
+	handleSignup,
+}: IProps) {
 	const [errors, setErrors] = useState<Record<string, string>>({})
 	const [isLoading, setIsLoading] = useState(false)
 	const [agreedToTerms, setAgreedToTerms] = useState(false)
 	const navgator = useNavigate()
 
-	const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-		const { name, value } = e.target
-		setFormData((prev) => ({ ...prev, [name]: value }))
-
-		// Clear error when user types
-		if (errors[name]) {
-			setErrors((prev) => {
-				const newErrors = { ...prev }
-				delete newErrors[name]
-				return newErrors
-			})
-		}
-	}
-
 	const validateForm = () => {
 		const newErrors: Record<string, string> = {}
 
-		if (!formData.name.trim()) {
+		if (!data.name.trim()) {
 			newErrors.name = 'Name is required'
 		}
 
-		if (!formData.email.trim()) {
+		if (!data.email.trim()) {
 			newErrors.email = 'Email is required'
-		} else if (!/\S+@\S+\.\S+/.test(formData.email)) {
+		} else if (!/\S+@\S+\.\S+/.test(data.email)) {
 			newErrors.email = 'Email is invalid'
 		}
 
-		if (!formData.password) {
+		if (!data.password) {
 			newErrors.password = 'Password is required'
-		} else if (formData.password.length < 8) {
-			newErrors.password = 'Password must be at least 8 characters'
+		} else if (data.password.length < 6) {
+			newErrors.password = 'Password must be at least 6 characters'
 		}
 
-		if (formData.password !== formData.confirmPassword) {
+		if (data.password !== data.confirmPassword) {
 			newErrors.confirmPassword = 'Passwords do not match'
 		}
 
@@ -68,28 +60,10 @@ export default function SignupForm() {
 		return Object.keys(newErrors).length === 0
 	}
 
-	const handleSubmit = async (e: React.FormEvent) => {
-		e.preventDefault()
-
-		if (!validateForm()) {
-			return
-		}
-
-		setIsLoading(true)
-
-		// Simulate signup delay
-		setTimeout(() => {
-			// In a real app, you would send the data to your backend
-			localStorage.setItem('isAuthenticated', 'true')
-			setIsLoading(false)
-			navgator('/')
-		}, 1500)
-	}
-
 	return (
 		<Card className="w-full">
 			<CardContent>
-				<form onSubmit={handleSubmit} className="space-y-4">
+				<form onSubmit={handleSignup} className="space-y-4">
 					<div className="space-y-2">
 						<Label htmlFor="name">Full Name</Label>
 						<div className="relative">
@@ -98,7 +72,7 @@ export default function SignupForm() {
 								id="name"
 								name="name"
 								placeholder="John Doe"
-								value={formData.name}
+								value={data.name}
 								onChange={handleChange}
 								className={`pl-10 ${
 									errors.name ? 'border-destructive' : ''
@@ -121,7 +95,7 @@ export default function SignupForm() {
 								name="email"
 								type="email"
 								placeholder="name@example.com"
-								value={formData.email}
+								value={data.email}
 								onChange={handleChange}
 								className={`pl-10 ${
 									errors.email ? 'border-destructive' : ''
@@ -144,7 +118,7 @@ export default function SignupForm() {
 								name="password"
 								type="password"
 								placeholder="••••••••"
-								value={formData.password}
+								value={data.password}
 								onChange={handleChange}
 								className={`pl-10 ${
 									errors.password ? 'border-destructive' : ''
@@ -169,7 +143,7 @@ export default function SignupForm() {
 								name="confirmPassword"
 								type="password"
 								placeholder="••••••••"
-								value={formData.confirmPassword}
+								value={data.confirmPassword}
 								onChange={handleChange}
 								className={`pl-10 ${
 									errors.confirmPassword

@@ -1,9 +1,9 @@
-import { useState } from 'react'
-import { Search, Users, Plus, LogOut, UserPlus, UserCircle } from 'lucide-react'
+/* eslint-disable @typescript-eslint/no-explicit-any */
+import { useEffect, useState } from 'react'
+import { Search, Users, LogOut, UserPlus, UserCircle } from 'lucide-react'
 import { Avatar } from '@/components/ui/avatar'
 import { Input } from '@/components/ui/input'
 import { Button } from '@/components/ui/button'
-import { Badge } from '@/components/ui/badge'
 import {
 	Sidebar,
 	SidebarContent,
@@ -20,93 +20,83 @@ import {
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { AddContactDialog } from '@/components/dialogs/AddContactDialog'
 import { CreateGroupDialog } from '@/components/dialogs/CreateGroupDialog'
+import { useDispatch, useSelector } from 'react-redux'
+import { AppDispatch, RootState } from '@/store/store'
+import { fetchSelectedRoomData, setSelectedRoomIdOnly } from '@/store/roomSlice'
 
-// Sample user data
-const users = [
-	{
-		id: '1',
-		name: 'Emma Thompson',
-		avatar: 'https://placehold.co/40',
-		status: 'online',
-		unread: 3,
-		lastMessage: "Hey, how's it going?",
-	},
-	{
-		id: '2',
-		name: 'James Wilson',
-		avatar: 'https://placehold.co/40',
-		status: 'online',
-		unread: 0,
-		lastMessage: 'Can we discuss the project?',
-	},
-	{
-		id: '3',
-		name: 'Sophia Martinez',
-		avatar: 'https://placehold.co/40',
-		status: 'offline',
-		unread: 0,
-		lastMessage: 'Thanks for your help!',
-	},
-	{
-		id: '4',
-		name: 'Liam Johnson',
-		avatar: 'https://placehold.co/40',
-		status: 'away',
-		unread: 1,
-		lastMessage: "I'll send you the files later",
-	},
-	{
-		id: '5',
-		name: 'Olivia Davis',
-		avatar: 'https://placehold.co/40',
-		status: 'online',
-		unread: 0,
-		lastMessage: "Let's meet tomorrow",
-	},
-]
-
-const initialGroups = [
-	{
-		id: 'group1',
-		name: 'Project Team',
-		avatar: '/placeholder.svg?height=40&width=40',
-		unread: 2,
-		lastMessage: 'Meeting at 3pm tomorrow',
-		members: [users[0], users[1], users[2]],
-	},
-	{
-		id: 'group2',
-		name: 'Family',
-		avatar: '/placeholder.svg?height=40&width=40',
-		unread: 0,
-		lastMessage: "Let's plan the weekend",
-		members: [users[3], users[4]],
-	},
-]
-
-type UserSidebarProps = {
-	onSelectUser: (userId: string) => void
-	selectedUser: string | null
-}
-
-export default function UserSidebar({
-	onSelectUser,
-	selectedUser,
-}: UserSidebarProps) {
+export default function UserSidebar({ socket, isConnected }) {
+	const dispatch = useDispatch<AppDispatch>()
+	const roomData = useSelector((state: RootState) => state.room)
+	const user = useSelector((state: RootState) => state.user.user)
 	const [searchQuery, setSearchQuery] = useState('')
 	const [addContactOpen, setAddContactOpen] = useState(false)
 	const [createGroupOpen, setCreateGroupOpen] = useState(false)
-	const [contacts, setContacts] = useState([...users])
-	const [groups, setGroups] = useState([...initialGroups])
+	const contacts =
+		roomData.roomList.filter((room) => room.type === 'private') ?? []
+	const groups =
+		roomData.roomList.filter((room) => room.type === 'group') ?? []
 	const [activeTab, setActiveTab] = useState('chats')
-
+	const selectedRoomId = useSelector(
+		(state: RootState) => state.room.selectedRoomId,
+	)
 	const filteredContacts = contacts.filter((user) =>
 		user.name.toLowerCase().includes(searchQuery.toLowerCase()),
 	)
-
 	const filteredGroups = groups.filter((group) =>
 		group.name.toLowerCase().includes(searchQuery.toLowerCase()),
 	)
+	const [onlineUsers, setOnlineUsers] = useState({}) // { userId: true }
+
+	useEffect(() => {
+		dispatch(fetchSelectedRoomData({ roomId: selectedRoomId as string }))
+	}, [dispatch, selectedRoomId])
+
+	useEffect(() => {
+		// Chỉ lắng nghe khi có socket và đã kết nối
+		if (socket && isConnected) {
+			console.log('ChatSidebar: Setting up listeners')
+
+			const handleUserOnline = (data) => {
+				console.log('Sidebar received user_online', data)
+				// Không hiển thị chính mình trong danh sách online (tùy chọn)
+				if (data.user_id !== user?._id) {
+					setOnlineUsers((prev) => ({
+						...prev,
+						[data.user_id]: true,
+					}))
+				}
+			}
+
+			const handleUserOffline = (data) => {
+				console.log('Sidebar received user_offline', data)
+				setOnlineUsers((prev) => {
+					const newOnline = { ...prev }
+					delete newOnline[data.user_id]
+					return newOnline
+				})
+			}
+
+			// Lắng nghe sự kiện
+			socket.on('user_online', handleUserOnline)
+			socket.on('user_offline', handleUserOffline)
+
+			// TODO: Có thể lấy danh sách user đang online ban đầu ở đây (ví dụ: qua API hoặc emit event khi connect)
+
+			// Cleanup function: Chạy khi component unmount hoặc socket/isConnected thay đổi
+			return () => {
+				console.log('ChatSidebar: Cleaning up listeners')
+				socket.off('user_online', handleUserOnline)
+				socket.off('user_offline', handleUserOffline)
+			}
+		} else {
+			// Reset state nếu không kết nối
+			setOnlineUsers({})
+		}
+	}, [socket, isConnected, user?._id]) // Phụ thuộc vào socket và isConnected
+
+	const handleChangeRoom = (roomId: string) => {
+		dispatch(setSelectedRoomIdOnly(roomId))
+	}
 
 	const getStatusColor = (status: string) => {
 		switch (status) {
@@ -119,31 +109,6 @@ export default function UserSidebar({
 			default:
 				return 'bg-gray-400'
 		}
-	}
-
-	const handleAddContact = (newContact: any) => {
-		// Check if contact already exists
-		if (!contacts.some((contact) => contact.id === newContact.id)) {
-			setContacts((prev) => [
-				...prev,
-				{
-					...newContact,
-					unread: 0,
-					lastMessage: 'New contact added',
-				},
-			])
-		}
-	}
-
-	const handleCreateGroup = (newGroup: any) => {
-		setGroups((prev) => [
-			...prev,
-			{
-				...newGroup,
-				unread: 0,
-				lastMessage: 'Group created',
-			},
-		])
 	}
 
 	return (
@@ -206,15 +171,18 @@ export default function UserSidebar({
 							<SidebarGroupContent>
 								<SidebarMenu>
 									{filteredContacts.length > 0 ? (
-										filteredContacts.map((user) => (
-											<SidebarMenuItem key={user.id}>
+										filteredContacts.map((contact) => (
+											<SidebarMenuItem key={contact._id}>
 												<SidebarMenuButton
 													asChild
 													isActive={
-														selectedUser === user.id
+														selectedRoomId ===
+														contact._id
 													}
 													onClick={() =>
-														onSelectUser(user.id)
+														handleChangeRoom(
+															contact._id,
+														)
 													}
 												>
 													<div className="flex items-center gap-3 w-full h-14">
@@ -222,42 +190,34 @@ export default function UserSidebar({
 															<Avatar className="h-10 w-10">
 																<img
 																	src={
-																		user.avatar ||
-																		'/placeholder.svg'
+																		'https://placehold.co/400'
 																	}
 																	alt={
-																		user.name
+																		user?.name
 																	}
 																	className="h-full w-full object-cover"
 																/>
 															</Avatar>
 															<div
 																className={`absolute bottom-0 right-0 h-3 w-3 rounded-full border-2 border-background ${getStatusColor(
-																	user.status,
+																	user?.status ||
+																		'offfline',
 																)}`}
 															/>
 														</div>
 														<div className="flex-1 min-w-0">
 															<div className="flex justify-between items-center">
 																<span className="font-medium truncate">
-																	{user.name}
+																	{
+																		contact
+																			.members[0]
+																			.name
+																	}
 																</span>
-																{user.unread >
-																	0 && (
-																	<Badge
-																		variant="default"
-																		className="ml-2 px-1.5 py-0.5 text-xs"
-																	>
-																		{
-																			user.unread
-																		}
-																	</Badge>
-																)}
 															</div>
 															<p className="text-xs text-muted-foreground truncate">
-																{
-																	user.lastMessage
-																}
+																{contact?.lastMessage ||
+																	''}
 															</p>
 														</div>
 													</div>
@@ -282,15 +242,17 @@ export default function UserSidebar({
 								<SidebarMenu>
 									{filteredGroups.length > 0 ? (
 										filteredGroups.map((group) => (
-											<SidebarMenuItem key={group.id}>
+											<SidebarMenuItem key={group._id}>
 												<SidebarMenuButton
 													asChild
 													isActive={
-														selectedUser ===
-														group.id
+														selectedRoomId ===
+														group._id
 													}
 													onClick={() =>
-														onSelectUser(group.id)
+														handleChangeRoom(
+															group._id,
+														)
 													}
 												>
 													<div className="flex items-center gap-3 w-full h-14">
@@ -298,8 +260,7 @@ export default function UserSidebar({
 															<Avatar className="h-10 w-10">
 																<img
 																	src={
-																		group.avatar ||
-																		'/placeholder.svg'
+																		'https://placehold.co/400'
 																	}
 																	alt={
 																		group.name
@@ -320,17 +281,6 @@ export default function UserSidebar({
 																<span className="font-medium truncate">
 																	{group.name}
 																</span>
-																{group.unread >
-																	0 && (
-																	<Badge
-																		variant="default"
-																		className="ml-2 px-1.5 py-0.5 text-xs"
-																	>
-																		{
-																			group.unread
-																		}
-																	</Badge>
-																)}
 															</div>
 															<p className="text-xs text-muted-foreground truncate">
 																{
@@ -365,14 +315,30 @@ export default function UserSidebar({
 				</SidebarContent>
 				<SidebarFooter>
 					<SidebarMenu>
-						<SidebarMenuItem>
-							<SidebarMenuButton asChild>
-								<div className="flex items-center gap-2">
-									<LogOut className="h-5 w-5" />
-									<span>Logout</span>
-								</div>
-							</SidebarMenuButton>
-						</SidebarMenuItem>
+						{user ? (
+							<>
+								<SidebarMenuItem>
+									<div>{user?.name}</div>
+								</SidebarMenuItem>
+								<SidebarMenuItem>
+									<SidebarMenuButton asChild>
+										<div className="flex items-center gap-2">
+											<LogOut className="h-5 w-5" />
+											<span>Logout</span>
+										</div>
+									</SidebarMenuButton>
+								</SidebarMenuItem>
+							</>
+						) : (
+							<SidebarMenuItem>
+								<SidebarMenuButton asChild>
+									<div className="flex items-center gap-2">
+										<LogOut className="h-5 w-5" />
+										<span>Login</span>
+									</div>
+								</SidebarMenuButton>
+							</SidebarMenuItem>
+						)}
 					</SidebarMenu>
 				</SidebarFooter>
 				<SidebarRail />
@@ -381,13 +347,11 @@ export default function UserSidebar({
 			<AddContactDialog
 				open={addContactOpen}
 				onOpenChange={setAddContactOpen}
-				onContactAdded={handleAddContact}
 			/>
 
 			<CreateGroupDialog
 				open={createGroupOpen}
 				onOpenChange={setCreateGroupOpen}
-				onGroupCreated={handleCreateGroup}
 			/>
 		</>
 	)
