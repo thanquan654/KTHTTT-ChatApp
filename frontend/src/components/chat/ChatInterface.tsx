@@ -9,6 +9,7 @@ import { AppDispatch, RootState } from '@/store/store'
 import { sendMessage } from '@/store/messageSlice'
 import { addMessage } from '@/store/roomSlice'
 import { IUser } from '@/types/User.type'
+import { setFriendList } from '@/store/userSlice'
 
 const uniqueById = (arr: IUser[]) => {
 	const map = new Map()
@@ -43,6 +44,10 @@ export default function ChatInterface({
 			.flat()
 			.filter((member) => member._id !== currentUser?._id),
 	)
+
+	useEffect(() => {
+		dispatch(setFriendList(friendList))
+	}, [dispatch, friendList])
 
 	const scrollToBottom = useCallback(() => {
 		messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
@@ -111,44 +116,68 @@ export default function ChatInterface({
 			{/* Messages */}
 			<ScrollArea className="flex-1 p-4 overflow-y-scroll">
 				<div className="space-y-4">
-					{selectedRoomMessages.map((message) => (
-						<div
-							key={message._id}
-							className={`flex ${
-								message.senderId === currentUser?._id
-									? 'justify-end'
-									: 'justify-start'
-							}`}
-						>
+					{selectedRoomMessages.map((message, index) => (
+						<div className="flex flex-col">
+							<div className="text-xs text-gray-400">
+								{
+									friendList
+										.filter(
+											(friend) =>
+												friend._id === message.senderId,
+										)
+										.map((friend) => friend.name)[0]
+								}
+							</div>
 							<div
-								className={`max-w-[80%] rounded-2xl px-4 py-2 ${
+								className={`flex ${
 									message.senderId === currentUser?._id
-										? 'bg-primary text-primary-foreground rounded-br-none'
-										: 'bg-muted rounded-bl-none'
+										? 'justify-end'
+										: 'justify-start'
 								}`}
 							>
-								<p>{message.content}</p>
 								<div
-									className={`text-xs mt-1 ${
+									className={`max-w-[80%] rounded-2xl px-4 py-2 ${
 										message.senderId === currentUser?._id
-											? 'text-primary-foreground/70'
-											: 'text-muted-foreground'
+											? 'bg-primary text-primary-foreground rounded-br-none'
+											: 'bg-muted rounded-bl-none'
 									}`}
 								>
-									{formatTime(message.createdAt)}
-								</div>
-								<div className="text-xs text-gray-400">
-									{
-										friendList
-											.filter(
-												(friend) =>
-													friend._id ===
-													message.senderId,
-											)
-											.map((friend) => friend.name)[0]
-									}
+									<p>{message.content}</p>
+									<div
+										className={`text-xs mt-1 ${
+											message.senderId ===
+											currentUser?._id
+												? 'text-primary-foreground/70'
+												: 'text-muted-foreground'
+										}`}
+									>
+										{formatTime(message.createdAt)}
+									</div>
 								</div>
 							</div>
+							{index === selectedRoomMessages.length - 1 &&
+								message.readBy.length > 1 && (
+									<div
+										className={`flex  text-xs text-gray-400 ${
+											message.senderId ===
+											currentUser?._id
+												? 'justify-end'
+												: 'justify-start'
+										}`}
+									>
+										{message.readBy
+											.map(
+												(userId) =>
+													friendList.filter(
+														(friend) =>
+															friend._id ===
+															userId,
+													)[0].name,
+											)
+											.join(', ')}
+										đã xem
+									</div>
+								)}
 						</div>
 					))}
 

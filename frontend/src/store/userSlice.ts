@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 import { createSlice, createAsyncThunk, PayloadAction } from '@reduxjs/toolkit'
 import axios from 'axios'
 import { IUser } from '@/types/User.type'
@@ -8,6 +9,7 @@ export interface UserSliceState {
 	user: IUser | null
 	status: 'idle' | 'loading' | 'succeeded' | 'failed'
 	error: string | null
+	friendList: IUser[]
 }
 
 const initialState: UserSliceState = {
@@ -15,6 +17,7 @@ const initialState: UserSliceState = {
 	user: null,
 	status: 'idle',
 	error: null,
+	friendList: [],
 }
 
 // Async thunk cho login
@@ -53,9 +56,10 @@ export const loadUserFromToken = createAsyncThunk(
 				},
 			})
 			return res.data.user
-			// eslint-disable-next-line @typescript-eslint/no-explicit-any
 		} catch (err: any) {
 			// Có thể bị expired token hoặc token sai
+			console.log(err)
+
 			return rejectWithValue('Token invalid or expired')
 		}
 	},
@@ -102,6 +106,10 @@ const userSlice = createSlice({
 			state.status = 'idle'
 			state.error = null
 			localStorage.removeItem('token')
+		},
+
+		setFriendList(state, action: PayloadAction<IUser[]>) {
+			state.friendList = action.payload
 		},
 	},
 	extraReducers: (builder) => {
@@ -163,5 +171,5 @@ const userSlice = createSlice({
 	},
 })
 
-export const { logout } = userSlice.actions
+export const { logout, setFriendList } = userSlice.actions
 export default userSlice.reducer

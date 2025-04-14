@@ -187,6 +187,33 @@ const roomSlice = createSlice({
 		},
 		// Action để reset state khi logout hoặc lỗi nghiêm trọng
 		resetRoomState: () => initialState,
+		changeUserStatus(
+			state,
+			action: PayloadAction<{ userId: string; status: string }>,
+		) {
+			state.roomList = state.roomList.map((room) => {
+				if (
+					room.members
+						.map((member) => member._id)
+						.includes(action.payload.userId)
+				) {
+					return {
+						...room,
+						members: room.members.map((member) => {
+							if (member._id === action.payload.userId) {
+								return {
+									...member,
+									status: action.payload.status,
+								}
+							}
+							return member
+						}),
+					}
+				} else {
+					return room
+				}
+			})
+		},
 	},
 	extraReducers: (builder) => {
 		builder
@@ -296,6 +323,7 @@ export const {
 	addMessage,
 	updateMessageReadStatus,
 	resetRoomState,
+	changeUserStatus,
 } = roomSlice.actions
 
 export default roomSlice.reducer

@@ -24,14 +24,11 @@ import { useDispatch, useSelector } from 'react-redux'
 import { AppDispatch, RootState } from '@/store/store'
 import { fetchSelectedRoomData, setSelectedRoomIdOnly } from '@/store/roomSlice'
 import { logout } from '@/store/userSlice'
+import { IUser } from '@/types/User.type'
 
 export default function UserSidebar({
-	socket,
-	isConnected,
 	handleSubcribeToRoom,
 }: {
-	socket: React.MutableRefObject<SocketIOClient.Socket | undefined>
-	isConnected: boolean
 	handleSubcribeToRoom: (roomId: string) => void
 }) {
 	const dispatch = useDispatch<AppDispatch>()
@@ -48,50 +45,20 @@ export default function UserSidebar({
 	const selectedRoomId = useSelector(
 		(state: RootState) => state.room.selectedRoomId,
 	)
-	const filteredContacts = contacts.filter((user) =>
-		user.name.toLowerCase().includes(searchQuery.toLowerCase()),
+	const filteredContacts = contacts.filter((contact) =>
+		contact.members.map((member) =>
+			member.name.toLowerCase().includes(searchQuery.toLowerCase()),
+		),
 	)
-
-	console.log('🚀 ~ filteredContacts:', filteredContacts)
 
 	const filteredGroups = groups.filter((group) =>
 		group.name.toLowerCase().includes(searchQuery.toLowerCase()),
 	)
-	const [onlineUsers, setOnlineUsers] = useState({}) // { userId: true }
 
 	useEffect(() => {
 		dispatch(fetchSelectedRoomData({ roomId: selectedRoomId as string }))
 		handleSubcribeToRoom(selectedRoomId as string)
 	}, [dispatch, handleSubcribeToRoom, selectedRoomId])
-
-	useEffect(() => {
-		// Chỉ lắng nghe khi có socket và đã kết nối
-		if (socket.current && isConnected) {
-			console.log('ChatSidebar: Setting up listeners')
-
-			const handleUserOnline = (data) => {
-				console.log('Sidebar received user_online', data)
-				// Không hiển thị chính mình trong danh sách online (tùy chọn)
-				if (data.user_id !== user?._id) {
-					setOnlineUsers((prev) => ({
-						...prev,
-						[data.user_id]: true,
-					}))
-				}
-			}
-
-			const handleUserOffline = (data) => {
-				console.log('Sidebar received user_offline', data)
-				setOnlineUsers((prev) => {
-					const newOnline = { ...prev }
-					delete newOnline[data.user_id]
-					return newOnline
-				})
-			}
-		} else {
-			setOnlineUsers({})
-		}
-	}, [socket, isConnected, user?._id]) // Phụ thuộc vào socket và isConnected
 
 	const handleChangeRoom = (roomId: string) => {
 		dispatch(setSelectedRoomIdOnly(roomId))
@@ -200,8 +167,15 @@ export default function UserSidebar({
 															</Avatar>
 															<div
 																className={`absolute bottom-0 right-0 h-3 w-3 rounded-full border-2 border-background ${getStatusColor(
-																	user?.status ||
-																		'offfline',
+																	contact.members.filter(
+																		(
+																			member,
+																		) =>
+																			member._id !==
+																			user?._id,
+																	)[0]
+																		.status ||
+																		'offline',
 																)}`}
 															/>
 														</div>

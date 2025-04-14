@@ -3,6 +3,8 @@ import UserSidebar from '@/components/chat/ChatSidebar'
 import { SidebarProvider } from '@/components/ui/sidebar'
 import { addMessage } from '@/store/roomSlice'
 import { AppDispatch, RootState } from '@/store/store'
+import { changeUserStatus } from '@/store/roomSlice'
+import { IMessage } from '@/types/Message.type'
 import { useEffect, useRef, useState } from 'react'
 import { useDispatch, useSelector } from 'react-redux'
 import io from 'socket.io-client'
@@ -27,7 +29,6 @@ export default function Home() {
 					socketRef.current?.id,
 				)
 				setIsConnected(true)
-				// TODO: Có thể emit 'join' cho các phòng user thuộc về ở đây hoặc trong ChatInterface/Sidebar
 			})
 
 			socketRef.current.on('disconnect', () => {
@@ -36,7 +37,33 @@ export default function Home() {
 				// Có thể xử lý logic reconnect ở đây nếu muốn
 			})
 
-			socketRef.current.on('new_message', (message) => {
+			socketRef.current.on(
+				'user_online',
+				(data: { user_id: string; timestamp: string }) => {
+					console.log('Component received user_online', data)
+					dispatch(
+						changeUserStatus({
+							userId: data.user_id,
+							status: 'online',
+						}),
+					)
+				},
+			)
+
+			socketRef.current.on(
+				'user_offline',
+				(data: { user_id: string; timestamp: string }) => {
+					console.log('Component received user_offline', data)
+					dispatch(
+						changeUserStatus({
+							userId: data.user_id,
+							status: 'offline',
+						}),
+					)
+				},
+			)
+
+			socketRef.current.on('new_message', (message: IMessage) => {
 				console.log('Component received new_message', message)
 				dispatch(addMessage(message))
 			})
@@ -76,17 +103,11 @@ export default function Home() {
 	return (
 		<main className="flex min-h-screen bg-gray-50">
 			<SidebarProvider>
-				<UserSidebar
-					socket={socketRef}
-					isConnected={isConnected}
-					handleSubcribeToRoom={handleSubcribeToRoom}
-				/>
+				<UserSidebar handleSubcribeToRoom={handleSubcribeToRoom} />
 				<div className="flex-1 p-1 md:p-4 h-screen flex items-center justify-center">
 					<div className="w-full h-full  shadow-xl rounded-xl overflow-scroll border border-gray-200">
 						{socketRef && isConnected && (
 							<ChatInterface
-								socket={socketRef}
-								isConnected={isConnected}
 								handleSendMessageToWebsocket={
 									handleSendMessageToWebsocket
 								}

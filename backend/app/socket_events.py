@@ -1,8 +1,11 @@
+from bson import ObjectId
 from flask_socketio import emit, join_room, leave_room
 from flask import request
 from datetime import datetime
 import logging
 import uuid
+
+from .mongo import get_mongo_client
 
 logger = logging.getLogger(__name__)
 
@@ -23,12 +26,16 @@ def register_socket_events(socketio):
 
     @socketio.on('connect')
     def handle_connect():
+        db = get_mongo_client().Chatapp
         try:
             user_id = request.args.get('user_id')
             if not user_id:
                 raise ValueError("user_id is required")
 
             store.online_users[user_id] = request.sid
+
+            db.users.update_one({"_id": ObjectId(user_id)}, {"$set": {"online": True}})
+
             emit_with_error_handling('user_online', {
                 'user_id': user_id,
                 'timestamp': datetime.now().isoformat()
@@ -40,6 +47,7 @@ def register_socket_events(socketio):
 
     @socketio.on('disconnect')
     def handle_disconnect():
+        db = get_mongo_client().Chatapp
         try:
             user_id = None
             for uid, sid in store.online_users.items():
@@ -49,6 +57,9 @@ def register_socket_events(socketio):
 
             if user_id:
                 del store.online_users[user_id]
+
+                db.users.update_one({"_id": ObjectId(user_id)}, {"$set": {"online": False}})
+
                 emit_with_error_handling('user_offline', {
                     'user_id': user_id,
                     'timestamp': datetime.now().isoformat()
