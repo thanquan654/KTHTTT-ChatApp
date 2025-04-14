@@ -13,9 +13,13 @@ import { Socket } from 'socket.io-client'
 export default function Home() {
 	const dispatch = useDispatch<AppDispatch>()
 	const user = useSelector((state: RootState) => state.user.user)
+	const currentRoomId = useSelector(
+		(state: RootState) => state.room.selectedRoomId,
+	)
 
 	const socketRef = useRef<typeof Socket | undefined>(undefined)
 	const [isConnected, setIsConnected] = useState(false)
+	const [isTyping, setIsTyping] = useState(false)
 
 	useEffect(() => {
 		if (user) {
@@ -67,6 +71,23 @@ export default function Home() {
 				console.log('Component received new_message', message)
 				dispatch(addMessage(message))
 			})
+
+			socketRef.current.on(
+				'typing_status',
+				(data: {
+					roomId: string
+					userId: string
+					isTyping: boolean
+				}) => {
+					console.log('🚀 ~ typing data:', data)
+					if (
+						data.roomId === currentRoomId &&
+						data.userId !== user._id
+					) {
+						setIsTyping(data.isTyping)
+					}
+				},
+			)
 		}
 
 		// Cleanup function: Chạy khi component unmount hoặc token/user thay đổi
@@ -76,7 +97,7 @@ export default function Home() {
 				socketRef.current?.disconnect()
 			}
 		}
-	}, [dispatch, user])
+	}, [currentRoomId, dispatch, user])
 
 	const handleSendMessageToWebsocket = (data: {
 		roomId: string
@@ -100,6 +121,16 @@ export default function Home() {
 		}
 	}
 
+	const handleTyping = (isTyping: boolean) => {
+		console.log('🚀 ~ isTyping:', isTyping)
+
+		socketRef.current?.emit('typing', {
+			roomId: currentRoomId,
+			userId: user?._id,
+			isTyping,
+		})
+	}
+
 	return (
 		<main className="flex min-h-screen bg-gray-50">
 			<SidebarProvider>
@@ -111,6 +142,8 @@ export default function Home() {
 								handleSendMessageToWebsocket={
 									handleSendMessageToWebsocket
 								}
+								isTyping={isTyping}
+								handleTyping={handleTyping}
 							/>
 						)}
 					</div>

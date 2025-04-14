@@ -7,9 +7,9 @@ import { Send } from 'lucide-react'
 import { useDispatch, useSelector } from 'react-redux'
 import { AppDispatch, RootState } from '@/store/store'
 import { sendMessage } from '@/store/messageSlice'
-import { addMessage } from '@/store/roomSlice'
 import { IUser } from '@/types/User.type'
 import { setFriendList } from '@/store/userSlice'
+import { useDebounce } from '@/hooks/useDebounce'
 
 const uniqueById = (arr: IUser[]) => {
 	const map = new Map()
@@ -19,16 +19,29 @@ const uniqueById = (arr: IUser[]) => {
 
 export default function ChatInterface({
 	handleSendMessageToWebsocket,
+	isTyping,
+	handleTyping,
 }: {
 	handleSendMessageToWebsocket: (data: {
 		roomId: string
 		senderId: string
 		content: string
 	}) => void
+	isTyping: boolean
+	handleTyping: (isTyping: boolean) => void
 }) {
 	const dispatch = useDispatch<AppDispatch>()
 	const [inputValue, setInputValue] = useState('')
-	const [isTyping, setIsTyping] = useState(true)
+	const [isLocalTyping, setIsLocalTyping] = useState(false)
+
+	// Debounce the typing status with 500ms delay
+	const debouncedIsTyping = useDebounce(isLocalTyping, 500)
+
+	// Watch for changes in debounced typing status
+	useEffect(() => {
+		handleTyping(debouncedIsTyping)
+	}, [debouncedIsTyping, handleTyping])
+
 	const messagesEndRef = useRef<HTMLDivElement>(null)
 	const roomData = useSelector((state: RootState) => state.room)
 	const selectedRoomData = roomData.currentRoomDetail
@@ -57,6 +70,13 @@ export default function ChatInterface({
 		scrollToBottom()
 	}, [selectedRoomMessages, scrollToBottom])
 
+	// Update input and typing status
+	const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+		setInputValue(e.target.value)
+		setIsLocalTyping(e.target.value.length > 0)
+	}
+
+	// Reset typing status when message is sent
 	const handleSendMessage = () => {
 		if (inputValue.trim() === '') return
 
@@ -70,6 +90,7 @@ export default function ChatInterface({
 		dispatch(sendMessage(newMessageData))
 
 		setInputValue('')
+		setIsLocalTyping(false) // Reset typing status
 	}
 
 	const formatTime = (timestamp: number) => {
@@ -211,7 +232,7 @@ export default function ChatInterface({
 					<div className="flex-1 relative">
 						<Input
 							value={inputValue}
-							onChange={(e) => setInputValue(e.target.value)}
+							onChange={handleInputChange} // Use new handler
 							placeholder="Type a message..."
 							className="pr-10 rounded-full"
 							onKeyDown={(e) => {
