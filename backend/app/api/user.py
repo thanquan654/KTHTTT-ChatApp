@@ -55,6 +55,8 @@ def login():
     # Tạo access token
     access_token = services.create_access_token(user)
 
+    g.current_user = user_public
+
     # Trả về token
     return jsonify({
         "access_token": access_token,

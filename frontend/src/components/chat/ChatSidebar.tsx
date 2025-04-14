@@ -23,8 +23,17 @@ import { CreateGroupDialog } from '@/components/dialogs/CreateGroupDialog'
 import { useDispatch, useSelector } from 'react-redux'
 import { AppDispatch, RootState } from '@/store/store'
 import { fetchSelectedRoomData, setSelectedRoomIdOnly } from '@/store/roomSlice'
+import { logout } from '@/store/userSlice'
 
-export default function UserSidebar({ socket, isConnected }) {
+export default function UserSidebar({
+	socket,
+	isConnected,
+	handleSubcribeToRoom,
+}: {
+	socket: React.MutableRefObject<SocketIOClient.Socket | undefined>
+	isConnected: boolean
+	handleSubcribeToRoom: (roomId: string) => void
+}) {
 	const dispatch = useDispatch<AppDispatch>()
 	const roomData = useSelector((state: RootState) => state.room)
 	const user = useSelector((state: RootState) => state.user.user)
@@ -42,6 +51,9 @@ export default function UserSidebar({ socket, isConnected }) {
 	const filteredContacts = contacts.filter((user) =>
 		user.name.toLowerCase().includes(searchQuery.toLowerCase()),
 	)
+
+	console.log('🚀 ~ filteredContacts:', filteredContacts)
+
 	const filteredGroups = groups.filter((group) =>
 		group.name.toLowerCase().includes(searchQuery.toLowerCase()),
 	)
@@ -49,11 +61,12 @@ export default function UserSidebar({ socket, isConnected }) {
 
 	useEffect(() => {
 		dispatch(fetchSelectedRoomData({ roomId: selectedRoomId as string }))
-	}, [dispatch, selectedRoomId])
+		handleSubcribeToRoom(selectedRoomId as string)
+	}, [dispatch, handleSubcribeToRoom, selectedRoomId])
 
 	useEffect(() => {
 		// Chỉ lắng nghe khi có socket và đã kết nối
-		if (socket && isConnected) {
+		if (socket.current && isConnected) {
 			console.log('ChatSidebar: Setting up listeners')
 
 			const handleUserOnline = (data) => {
@@ -75,27 +88,14 @@ export default function UserSidebar({ socket, isConnected }) {
 					return newOnline
 				})
 			}
-
-			// Lắng nghe sự kiện
-			socket.on('user_online', handleUserOnline)
-			socket.on('user_offline', handleUserOffline)
-
-			// TODO: Có thể lấy danh sách user đang online ban đầu ở đây (ví dụ: qua API hoặc emit event khi connect)
-
-			// Cleanup function: Chạy khi component unmount hoặc socket/isConnected thay đổi
-			return () => {
-				console.log('ChatSidebar: Cleaning up listeners')
-				socket.off('user_online', handleUserOnline)
-				socket.off('user_offline', handleUserOffline)
-			}
 		} else {
-			// Reset state nếu không kết nối
 			setOnlineUsers({})
 		}
 	}, [socket, isConnected, user?._id]) // Phụ thuộc vào socket và isConnected
 
 	const handleChangeRoom = (roomId: string) => {
 		dispatch(setSelectedRoomIdOnly(roomId))
+		handleSubcribeToRoom(roomId)
 	}
 
 	const getStatusColor = (status: string) => {
@@ -209,9 +209,20 @@ export default function UserSidebar({ socket, isConnected }) {
 															<div className="flex justify-between items-center">
 																<span className="font-medium truncate">
 																	{
-																		contact
-																			.members[0]
-																			.name
+																		contact.members
+																			.filter(
+																				(
+																					member,
+																				) =>
+																					member._id !==
+																					user?._id,
+																			)
+																			.map(
+																				(
+																					member,
+																				) =>
+																					member.name,
+																			)[0]
 																	}
 																</span>
 															</div>
@@ -324,7 +335,13 @@ export default function UserSidebar({ socket, isConnected }) {
 									<SidebarMenuButton asChild>
 										<div className="flex items-center gap-2">
 											<LogOut className="h-5 w-5" />
-											<span>Logout</span>
+											<span
+												onClick={() =>
+													dispatch(logout())
+												}
+											>
+												Logout
+											</span>
 										</div>
 									</SidebarMenuButton>
 								</SidebarMenuItem>

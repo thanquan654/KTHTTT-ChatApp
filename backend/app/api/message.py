@@ -22,7 +22,7 @@ def send_message():
         "senderId": ObjectId(sender_id),
         "content": content,
         "readBy": [],
-        "createdAt": datetime.now()
+        "createdAt": datetime.now().timestamp()
     }
 
     result = db.messages.insert_one(new_message)

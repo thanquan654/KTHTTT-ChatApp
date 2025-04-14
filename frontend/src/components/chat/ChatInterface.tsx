@@ -8,8 +8,23 @@ import { useDispatch, useSelector } from 'react-redux'
 import { AppDispatch, RootState } from '@/store/store'
 import { sendMessage } from '@/store/messageSlice'
 import { addMessage } from '@/store/roomSlice'
+import { IUser } from '@/types/User.type'
 
-export default function ChatInterface({ socket, isConnected }) {
+const uniqueById = (arr: IUser[]) => {
+	const map = new Map()
+	arr.forEach((item) => map.set(item._id, item))
+	return Array.from(map.values())
+}
+
+export default function ChatInterface({
+	handleSendMessageToWebsocket,
+}: {
+	handleSendMessageToWebsocket: (data: {
+		roomId: string
+		senderId: string
+		content: string
+	}) => void
+}) {
 	const dispatch = useDispatch<AppDispatch>()
 	const [inputValue, setInputValue] = useState('')
 	const [isTyping, setIsTyping] = useState(true)
@@ -20,6 +35,13 @@ export default function ChatInterface({ socket, isConnected }) {
 	const currentUser = useSelector((state: RootState) => state.user.user)
 	const currentRoomId = useSelector(
 		(state: RootState) => state.room.selectedRoomId,
+	)
+
+	const friendList = uniqueById(
+		roomData.roomList
+			.map((room) => room.members)
+			.flat()
+			.filter((member) => member._id !== currentUser?._id),
 	)
 
 	const scrollToBottom = useCallback(() => {
@@ -38,19 +60,19 @@ export default function ChatInterface({ socket, isConnected }) {
 			senderId: currentUser?._id as string,
 			content: inputValue,
 		}
-		if (socket && isConnected) {
-			socket.emit('message', newMessageData)
-		}
+		handleSendMessageToWebsocket(newMessageData)
+
 		dispatch(sendMessage(newMessageData))
 
 		setInputValue('')
 	}
 
-	const formatTime = (date: string) => {
-		return new Date(date).toLocaleTimeString([], {
-			hour: '2-digit',
-			minute: '2-digit',
-		})
+	const formatTime = (timestamp: number) => {
+		const date = new Date(timestamp * 1000) // Convert to milliseconds
+		const hours = String(date.getHours()).padStart(2, '0')
+		const minutes = String(date.getMinutes()).padStart(2, '0')
+		const formattedTime = `${hours}:${minutes}`
+		return formattedTime
 	}
 
 	return (
@@ -71,7 +93,12 @@ export default function ChatInterface({ socket, isConnected }) {
 						</Avatar>
 						<div>
 							<h2 className="font-semibold">
-								{selectedRoomData?.name}
+								{selectedRoomData?.type === 'group'
+									? selectedRoomData?.name
+									: selectedRoomData?.members.find(
+											(member) =>
+												member._id !== currentUser?._id,
+									  )?.name}
 							</h2>
 							<p className="text-xs text-muted-foreground capitalize">
 								{selectedRoomData?.type}
@@ -82,7 +109,7 @@ export default function ChatInterface({ socket, isConnected }) {
 			</div>
 
 			{/* Messages */}
-			<ScrollArea className="flex-1 p-4">
+			<ScrollArea className="flex-1 p-4 overflow-y-scroll">
 				<div className="space-y-4">
 					{selectedRoomMessages.map((message) => (
 						<div
@@ -109,6 +136,17 @@ export default function ChatInterface({ socket, isConnected }) {
 									}`}
 								>
 									{formatTime(message.createdAt)}
+								</div>
+								<div className="text-xs text-gray-400">
+									{
+										friendList
+											.filter(
+												(friend) =>
+													friend._id ===
+													message.senderId,
+											)
+											.map((friend) => friend.name)[0]
+									}
 								</div>
 							</div>
 						</div>

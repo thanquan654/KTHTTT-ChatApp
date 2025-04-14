@@ -65,13 +65,22 @@ export const loadUserFromToken = createAsyncThunk(
 export const signup = createAsyncThunk(
 	'user/signup',
 	async (
-		payload: { name: string; email: string; password: string },
+		payload: {
+			name: string
+			email: string
+			password: string
+			confirmPassword: string
+		},
 		{ rejectWithValue },
 	) => {
 		try {
 			const res = await axios.post(
-				'http://127.0.0.1:5000/api/auth/signup',
-				payload,
+				'http://127.0.0.1:5000/api/auth/register',
+				{
+					name: payload.name,
+					email: payload.email,
+					password: payload.password,
+				},
 			)
 			localStorage.setItem('token', res.data.access_token)
 			return res.data.user

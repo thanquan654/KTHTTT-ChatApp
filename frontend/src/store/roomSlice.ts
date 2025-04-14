@@ -155,7 +155,7 @@ const roomSlice = createSlice({
 		addMessage: (state, action: PayloadAction<IMessage>) => {
 			if (
 				state.selectedRoomId &&
-				action.payload.groupId === state.selectedRoomId
+				action.payload.roomId === state.selectedRoomId
 			) {
 				const exists = state.currentRoomMessages.some(
 					(msg) => msg._id === action.payload._id,
