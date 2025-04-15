@@ -204,8 +204,8 @@ export default function ChatInterface({
 										{message.readBy
 											.filter(
 												(userId) =>
-													userId !== message.senderId,
-											) // Lọc bỏ người gửi
+													userId !== currentUser?._id,
+											)
 											.map(
 												(userId) =>
 													roomData.roomList
