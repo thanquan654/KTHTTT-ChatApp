@@ -21,7 +21,7 @@ def send_message():
         "roomId": ObjectId(room_id),
         "senderId": ObjectId(sender_id),
         "content": content,
-        "readBy": [],
+        "readBy": [sender_id],
         "createdAt": datetime.now().timestamp()
     }
 

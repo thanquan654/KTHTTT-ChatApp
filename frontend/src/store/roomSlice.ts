@@ -165,26 +165,6 @@ const roomSlice = createSlice({
 				}
 			}
 		},
-		// Action cập nhật trạng thái đọc (từ WebSocket) - Giữ nguyên
-		updateMessageReadStatus: (
-			state,
-			action: PayloadAction<{ messageId: string; userId: string }>,
-		) => {
-			if (state.selectedRoomId) {
-				const messageIndex = state.currentRoomMessages.findIndex(
-					(msg) => msg._id === action.payload.messageId,
-				)
-				if (messageIndex !== -1) {
-					const message = state.currentRoomMessages[messageIndex]
-					if (
-						Array.isArray(message.readBy) &&
-						!message.readBy.includes(action.payload.userId)
-					) {
-						message.readBy.push(action.payload.userId) // Dùng Immer để mutate trực tiếp
-					}
-				}
-			}
-		},
 		// Action để reset state khi logout hoặc lỗi nghiêm trọng
 		resetRoomState: () => initialState,
 		changeUserStatus(
@@ -213,6 +193,23 @@ const roomSlice = createSlice({
 					return room
 				}
 			})
+		},
+
+		updateMessageReadStatus: (
+			state,
+			action: PayloadAction<{
+				roomId: string
+				messageId: string
+				userId: string
+			}>,
+		) => {
+			const { roomId, messageId, userId } = action.payload
+			const message = state.currentRoomMessages.find(
+				(msg) => msg._id === messageId,
+			)
+			if (message && !message.readBy.includes(userId)) {
+				message.readBy.push(userId)
+			}
 		},
 	},
 	extraReducers: (builder) => {

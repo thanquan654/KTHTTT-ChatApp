@@ -1,7 +1,7 @@
 import ChatInterface from '@/components/chat/ChatInterface'
 import UserSidebar from '@/components/chat/ChatSidebar'
 import { SidebarProvider } from '@/components/ui/sidebar'
-import { addMessage } from '@/store/roomSlice'
+import { addMessage, updateMessageReadStatus } from '@/store/roomSlice'
 import { AppDispatch, RootState } from '@/store/store'
 import { changeUserStatus } from '@/store/roomSlice'
 import { IMessage } from '@/types/Message.type'
@@ -79,13 +79,31 @@ export default function Home() {
 					userId: string
 					isTyping: boolean
 				}) => {
-					console.log('🚀 ~ typing data:', data)
 					if (
 						data.roomId === currentRoomId &&
 						data.userId !== user._id
 					) {
 						setIsTyping(data.isTyping)
 					}
+				},
+			)
+
+			socketRef.current.on(
+				'message_read',
+				(data: {
+					roomId: string
+					userId: string
+					messageId: string
+					timestamp: string
+				}) => {
+					console.log('Message read:', data)
+					dispatch(
+						updateMessageReadStatus({
+							roomId: data.roomId,
+							messageId: data.messageId,
+							userId: data.userId,
+						}),
+					)
 				},
 			)
 		}
@@ -131,6 +149,16 @@ export default function Home() {
 		})
 	}
 
+	const handleMarkMessageAsRead = (messageId: string) => {
+		if (socketRef.current && isConnected && currentRoomId) {
+			socketRef.current.emit('read_message', {
+				roomId: currentRoomId,
+				userId: user?._id,
+				messageId: messageId,
+			})
+		}
+	}
+
 	return (
 		<main className="flex min-h-screen bg-gray-50">
 			<SidebarProvider>
@@ -144,6 +172,7 @@ export default function Home() {
 								}
 								isTyping={isTyping}
 								handleTyping={handleTyping}
+								onMessageRead={handleMarkMessageAsRead}
 							/>
 						)}
 					</div>

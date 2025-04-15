@@ -34,7 +34,7 @@ def register_socket_events(socketio):
 
             store.online_users[user_id] = request.sid
 
-            db.users.update_one({"_id": ObjectId(user_id)}, {"$set": {"online": True}})
+            db.users.update_one({"_id": ObjectId(user_id)}, {"$set": {"status": 'online'}})
 
             emit_with_error_handling('user_online', {
                 'user_id': user_id,
@@ -58,7 +58,7 @@ def register_socket_events(socketio):
             if user_id:
                 del store.online_users[user_id]
 
-                db.users.update_one({"_id": ObjectId(user_id)}, {"$set": {"online": False}})
+                db.users.update_one({"_id": ObjectId(user_id)}, {"$set": {"status": 'offline'}})
 
                 emit_with_error_handling('user_offline', {
                     'user_id': user_id,
@@ -124,7 +124,6 @@ def register_socket_events(socketio):
     @socketio.on('message')
     def handle_message(data):
         try:
-            print(type(data))
             room_id = data.get('roomId')
             sender_id = data.get('senderId')
             content = data.get('content')
@@ -150,6 +149,7 @@ def register_socket_events(socketio):
     @socketio.on('typing')
     def handle_typing(data):
         try:
+            db = get_mongo_client().Chatapp
             room_id = data.get('roomId')
             user_id = data.get('userId')
             is_typing = data.get('isTyping', False)
@@ -165,6 +165,9 @@ def register_socket_events(socketio):
                 if room_id in store.typing_users:
                     store.typing_users[room_id].discard(user_id)
 
+            db.users.update_one({"_id": ObjectId(user_id)}, {"$set": {"typing": is_typing}})
+
+
             emit_with_error_handling('typing_status', {
                 'roomId': room_id,
                 'userId': user_id,
@@ -178,12 +181,15 @@ def register_socket_events(socketio):
     @socketio.on('read_message')
     def handle_read_message(data):
         try:
+            db = get_mongo_client().Chatapp
             message_id = data.get('messageId')
             user_id = data.get('userId')
             room_id = data.get('roomId')
 
             if not all([message_id, user_id, room_id]):
                 raise ValueError("messageId, userId, and roomId are required")
+
+            db.messages.update_one({"_id": ObjectId(message_id)}, {"$addToSet": {"readBy": user_id}})
 
             emit_with_error_handling('message_read', {
                 'messageId': message_id,

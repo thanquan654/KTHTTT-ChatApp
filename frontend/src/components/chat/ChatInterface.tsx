@@ -21,6 +21,7 @@ export default function ChatInterface({
 	handleSendMessageToWebsocket,
 	isTyping,
 	handleTyping,
+	onMessageRead,
 }: {
 	handleSendMessageToWebsocket: (data: {
 		roomId: string
@@ -29,6 +30,7 @@ export default function ChatInterface({
 	}) => void
 	isTyping: boolean
 	handleTyping: (isTyping: boolean) => void
+	onMessageRead: (messageId: string) => void
 }) {
 	const dispatch = useDispatch<AppDispatch>()
 	const [inputValue, setInputValue] = useState('')
@@ -69,6 +71,19 @@ export default function ChatInterface({
 	useEffect(() => {
 		scrollToBottom()
 	}, [selectedRoomMessages, scrollToBottom])
+
+	useEffect(() => {
+		if (selectedRoomMessages.length > 0) {
+			const lastMessage =
+				selectedRoomMessages[selectedRoomMessages.length - 1]
+			if (
+				lastMessage.senderId !== currentUser?._id &&
+				!lastMessage.readBy.includes(currentUser?._id as string)
+			) {
+				onMessageRead(lastMessage._id)
+			}
+		}
+	}, [selectedRoomMessages, currentUser?._id, onMessageRead])
 
 	// Update input and typing status
 	const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -187,15 +202,31 @@ export default function ChatInterface({
 										}`}
 									>
 										{message.readBy
+											.filter(
+												(userId) =>
+													userId !== message.senderId,
+											) // Lọc bỏ người gửi
 											.map(
 												(userId) =>
-													friendList.filter(
-														(friend) =>
-															friend._id ===
-															userId,
-													)[0].name,
+													roomData.roomList
+														.filter((room) =>
+															room.members.some(
+																(member) =>
+																	member._id ===
+																	userId,
+															),
+														)
+														.map(
+															(room) =>
+																room.members.find(
+																	(member) =>
+																		member._id ===
+																		userId,
+																)?.name,
+														)[0],
 											)
-											.join(', ')}
+											.filter(Boolean) // Lọc bỏ undefined
+											.join(', ')}{' '}
 										đã xem
 									</div>
 								)}
