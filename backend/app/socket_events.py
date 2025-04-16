@@ -21,32 +21,63 @@ def register_socket_events(socketio):
     store = SocketStore()
     subscription_threads = []
 
+    # Handler cho user status events
     def handle_redis_user_status(message):
         try:
             event_type = message.get('event')
             event_data = message.get('data')
 
-            print(f"Received Redis user status event: {event_type}, data: {event_data}")
-
-            # Thử emit với namespace mặc định và không specify room
             if event_type == 'user_online':
                 socketio.emit('user_online', event_data)
-                print(f"Emitted user_online event with namespace: {event_data}")
             elif event_type == 'user_offline':
                 socketio.emit('user_offline', event_data)
-                print(f"Emitted user_offline event with namespace: {event_data}")
-
         except Exception as e:
             logger.error(f"Redis user status handling error: {str(e)}")
-            print(f"Error handling Redis message: {e}")
 
-    # Truyền trực tiếp socketio instance vào subscribe_in_background
-    thread = subscribe_in_background(
-        REDIS_CHANNELS['USER_STATUS'],
-        handle_redis_user_status,
-        socketio
-    )
-    subscription_threads.append(thread)
+    # Handler cho room events
+    def handle_redis_room_events(message):
+        try:
+            event_type = message.get('event')
+            event_data = message.get('data')
+            room_id = event_data.get('roomId')
+
+            if event_type == 'room_subscribed':
+                socketio.emit('room_subscribed', event_data, room=room_id)
+            elif event_type == 'room_unsubscribed':
+                socketio.emit('room_unsubscribed', event_data, room=room_id)
+        except Exception as e:
+            logger.error(f"Redis room events handling error: {str(e)}")
+
+    # Handler cho message events
+    def handle_redis_message_events(message):
+        try:
+            event_type = message.get('event')
+            event_data = message.get('data')
+            room_id = event_data.get('roomId')
+
+            if event_type == 'new_message':
+                socketio.emit('new_message', event_data, room=room_id)
+            elif event_type == 'message_read':
+                socketio.emit('message_read', event_data, room=room_id)
+        except Exception as e:
+            logger.error(f"Redis message events handling error: {str(e)}")
+
+    # Handler cho typing events
+    def handle_redis_typing_events(message):
+        try:
+            event_data = message.get('data')
+            room_id = event_data.get('roomId')
+            socketio.emit('typing_status', event_data, room=room_id)
+        except Exception as e:
+            logger.error(f"Redis typing events handling error: {str(e)}")
+
+    # Subscribe to all channels
+    subscription_threads.extend([
+        subscribe_in_background(REDIS_CHANNELS['USER_STATUS'], handle_redis_user_status, socketio),
+        subscribe_in_background(REDIS_CHANNELS['ROOM_EVENTS'], handle_redis_room_events, socketio),
+        subscribe_in_background(REDIS_CHANNELS['MESSAGE_EVENTS'], handle_redis_message_events, socketio),
+        subscribe_in_background(REDIS_CHANNELS['TYPING_EVENTS'], handle_redis_typing_events, socketio)
+    ])
 
     @socketio.on('connect')
     def handle_connect():
@@ -137,21 +168,21 @@ def register_socket_events(socketio):
                 raise ValueError("roomId and userId are required")
 
             join_room(room_id)
-
-            # Add user to room members list if needed
             if room_id not in store.typing_users:
                 store.typing_users[room_id] = set()
 
-            socketio.emit('room_subscribed', {
-                'roomId': room_id,
-                'userId': user_id,
-                'timestamp': datetime.now().isoformat()
-            }, room=room_id)
-
+            success = publish_event(REDIS_CHANNELS['ROOM_EVENTS'], {
+                'event': 'room_subscribed',
+                'data': {
+                    'roomId': room_id,
+                    'userId': user_id,
+                    'timestamp': datetime.now().isoformat()
+                }
+            })
             logger.info(f"User {user_id} subscribed to room {room_id}")
         except Exception as e:
             logger.error(f"Room subscription error: {str(e)}")
-            emit('error', {'message': str(e)})
+            socketio.emit('error', {'message': str(e)}, room=request.sid)
 
     @socketio.on('unsubscribe_room')
     def handle_unsubscribe_room(data):
@@ -168,16 +199,18 @@ def register_socket_events(socketio):
             if room_id in store.typing_users:
                 store.typing_users[room_id].discard(user_id)
 
-            socketio.emit('room_unsubscribed', {
-                'roomId': room_id,
-                'userId': user_id,
-                'timestamp': datetime.now().isoformat()
-            }, room=room_id)
-
+            success = publish_event(REDIS_CHANNELS['ROOM_EVENTS'], {
+                'event': 'room_unsubscribed',
+                'data': {
+                    'roomId': room_id,
+                    'userId': user_id,
+                    'timestamp': datetime.now().isoformat()
+                }
+            })
             logger.info(f"User {user_id} unsubscribed from room {room_id}")
         except Exception as e:
             logger.error(f"Room unsubscription error: {str(e)}")
-            emit('error', {'message': str(e)})
+            socketio.emit('error', {'message': str(e)}, room=request.sid)
 
     @socketio.on('message')
     def handle_message(data):
@@ -198,11 +231,14 @@ def register_socket_events(socketio):
                 'readBy': [sender_id],
             }
 
-            socketio.emit('new_message', message, room=room_id)
-
+            success = publish_event(REDIS_CHANNELS['MESSAGE_EVENTS'], {
+                'event': 'new_message',
+                'data': message
+            })
             logger.info(f"Message sent in room {room_id} by user {sender_id}")
         except Exception as e:
             logger.error(f"Message handling error: {str(e)}")
+            socketio.emit('error', {'message': str(e)}, room=request.sid)
 
     @socketio.on('typing')
     def handle_typing(data):
@@ -225,16 +261,19 @@ def register_socket_events(socketio):
 
             db.users.update_one({"_id": ObjectId(user_id)}, {"$set": {"typing": is_typing}})
 
-
-            socketio.emit('typing_status', {
-                'roomId': room_id,
-                'userId': user_id,
-                'isTyping': is_typing,
-                'timestamp': datetime.now().isoformat()
-            }, room=room_id)
+            success = publish_event(REDIS_CHANNELS['TYPING_EVENTS'], {
+                'event': 'typing_status',
+                'data': {
+                    'roomId': room_id,
+                    'userId': user_id,
+                    'isTyping': is_typing,
+                    'timestamp': datetime.now().isoformat()
+                }
+            })
             logger.info(f"Typing status updated for user {user_id} in room {room_id}")
         except Exception as e:
             logger.error(f"Typing handling error: {str(e)}")
+            socketio.emit('error', {'message': str(e)}, room=request.sid)
 
     @socketio.on('read_message')
     def handle_read_message(data):
@@ -247,14 +286,21 @@ def register_socket_events(socketio):
             if not all([message_id, user_id, room_id]):
                 raise ValueError("messageId, userId, and roomId are required")
 
-            db.messages.update_one({"_id": ObjectId(message_id)}, {"$addToSet": {"readBy": user_id}})
+            db.messages.update_one(
+                {"_id": ObjectId(message_id)},
+                {"$addToSet": {"readBy": user_id}}
+            )
 
-            socketio.emit('message_read', {
-                'messageId': message_id,
-                'userId': user_id,
-                'roomId': room_id,
-                'timestamp': datetime.now().isoformat()
-            }, room=room_id)
+            success = publish_event(REDIS_CHANNELS['MESSAGE_EVENTS'], {
+                'event': 'message_read',
+                'data': {
+                    'messageId': message_id,
+                    'userId': user_id,
+                    'roomId': room_id,
+                    'timestamp': datetime.now().isoformat()
+                }
+            })
             logger.info(f"Message {message_id} read by user {user_id} in room {room_id}")
         except Exception as e:
             logger.error(f"Read message handling error: {str(e)}")
+            socketio.emit('error', {'message': str(e)}, room=request.sid)
