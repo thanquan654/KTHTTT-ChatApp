@@ -1,11 +1,14 @@
 from bson import ObjectId
 from flask_socketio import emit, join_room, leave_room
-from flask import request
+from flask import request, current_app
 from datetime import datetime
 import logging
 import uuid
+import json
 
 from .mongo import get_mongo_client
+from .redis_pubsub import publish_event, subscribe_channel, subscribe_in_background
+from .constants import REDIS_CHANNELS
 
 logger = logging.getLogger(__name__)
 
@@ -16,34 +19,74 @@ class SocketStore:
 
 def register_socket_events(socketio):
     store = SocketStore()
+    subscription_threads = []
 
-    def emit_with_error_handling(event, data, **kwargs):
+    def handle_redis_user_status(message):
         try:
-            emit(event, data, **kwargs)
+            event_type = message.get('event')
+            event_data = message.get('data')
+
+            print(f"Received Redis user status event: {event_type}, data: {event_data}")
+
+            # Thử emit với namespace mặc định và không specify room
+            if event_type == 'user_online':
+                socketio.emit('user_online', event_data)
+                print(f"Emitted user_online event with namespace: {event_data}")
+            elif event_type == 'user_offline':
+                socketio.emit('user_offline', event_data)
+                print(f"Emitted user_offline event with namespace: {event_data}")
+
         except Exception as e:
-            logger.error(f"Error emitting {event}: {str(e)}")
-            emit('error', {'message': str(e)})
+            logger.error(f"Redis user status handling error: {str(e)}")
+            print(f"Error handling Redis message: {e}")
+
+    # Truyền trực tiếp socketio instance vào subscribe_in_background
+    thread = subscribe_in_background(
+        REDIS_CHANNELS['USER_STATUS'],
+        handle_redis_user_status,
+        socketio
+    )
+    subscription_threads.append(thread)
 
     @socketio.on('connect')
     def handle_connect():
         db = get_mongo_client().Chatapp
         try:
             user_id = request.args.get('user_id')
+            print(f"Socket connection attempt from user_id: {user_id}, sid: {request.sid}")
+
             if not user_id:
                 raise ValueError("user_id is required")
 
             store.online_users[user_id] = request.sid
+            print(f"User {user_id} connected with socket id {request.sid}")
+            print(f"Current online users: {store.online_users}")
 
-            db.users.update_one({"_id": ObjectId(user_id)}, {"$set": {"status": 'online'}})
+            # Update MongoDB status
+            db.users.update_one(
+                {"_id": ObjectId(user_id)},
+                {"$set": {"status": 'online'}}
+            )
 
-            emit_with_error_handling('user_online', {
-                'user_id': user_id,
-                'timestamp': datetime.now().isoformat()
-            }, broadcast=True)
+            # Publish to Redis
+            success = publish_event(REDIS_CHANNELS['USER_STATUS'], {
+                'event': 'user_online',
+                'data': {
+                    'user_id': user_id,
+                    'timestamp': datetime.now().isoformat()
+                }
+            })
+
+            if success:
+                print(f"Successfully published user_online event for user {user_id}")
+            else:
+                print(f"Failed to publish user_online event for user {user_id}")
 
             logger.info(f'Client connected. User ID: {user_id}')
+
         except Exception as e:
             logger.error(f"Connection error: {str(e)}")
+            print(f"Connection error: {e}")
 
     @socketio.on('disconnect')
     def handle_disconnect():
@@ -58,16 +101,31 @@ def register_socket_events(socketio):
             if user_id:
                 del store.online_users[user_id]
 
-                db.users.update_one({"_id": ObjectId(user_id)}, {"$set": {"status": 'offline'}})
+                # Update MongoDB status
+                db.users.update_one(
+                    {"_id": ObjectId(user_id)},
+                    {"$set": {"status": 'offline'}}
+                )
 
-                emit_with_error_handling('user_offline', {
-                    'user_id': user_id,
-                    'timestamp': datetime.now().isoformat()
-                }, broadcast=True)
+                # Publish to Redis
+                success = publish_event(REDIS_CHANNELS['USER_STATUS'], {
+                    'event': 'user_offline',
+                    'data': {
+                        'user_id': user_id,
+                        'timestamp': datetime.now().isoformat()
+                    }
+                })
+
+                if success:
+                    print(f"Successfully published user_offline event for user {user_id}")
+                else:
+                    print(f"Failed to publish user_offline event for user {user_id}")
 
             logger.info(f'Client disconnected. User ID: {user_id}')
+
         except Exception as e:
             logger.error(f"Disconnection error: {str(e)}")
+            print(f"Disconnection error: {e}")
 
     @socketio.on('subscribe_room')
     def handle_subscribe_room(data):
@@ -84,7 +142,7 @@ def register_socket_events(socketio):
             if room_id not in store.typing_users:
                 store.typing_users[room_id] = set()
 
-            emit_with_error_handling('room_subscribed', {
+            socketio.emit('room_subscribed', {
                 'roomId': room_id,
                 'userId': user_id,
                 'timestamp': datetime.now().isoformat()
@@ -110,7 +168,7 @@ def register_socket_events(socketio):
             if room_id in store.typing_users:
                 store.typing_users[room_id].discard(user_id)
 
-            emit_with_error_handling('room_unsubscribed', {
+            socketio.emit('room_unsubscribed', {
                 'roomId': room_id,
                 'userId': user_id,
                 'timestamp': datetime.now().isoformat()
@@ -140,7 +198,7 @@ def register_socket_events(socketio):
                 'readBy': [sender_id],
             }
 
-            emit_with_error_handling('new_message', message, room=room_id)
+            socketio.emit('new_message', message, room=room_id)
 
             logger.info(f"Message sent in room {room_id} by user {sender_id}")
         except Exception as e:
@@ -168,7 +226,7 @@ def register_socket_events(socketio):
             db.users.update_one({"_id": ObjectId(user_id)}, {"$set": {"typing": is_typing}})
 
 
-            emit_with_error_handling('typing_status', {
+            socketio.emit('typing_status', {
                 'roomId': room_id,
                 'userId': user_id,
                 'isTyping': is_typing,
@@ -191,7 +249,7 @@ def register_socket_events(socketio):
 
             db.messages.update_one({"_id": ObjectId(message_id)}, {"$addToSet": {"readBy": user_id}})
 
-            emit_with_error_handling('message_read', {
+            socketio.emit('message_read', {
                 'messageId': message_id,
                 'userId': user_id,
                 'roomId': room_id,
