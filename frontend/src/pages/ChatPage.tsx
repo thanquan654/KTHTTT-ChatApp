@@ -23,56 +23,75 @@ export default function Home() {
 
 	useEffect(() => {
 		if (user) {
-			socketRef.current = io('http://localhost:5000', {
+			console.log('Initializing socket connection...')
+
+			// Tạo socket connection với explicit namespace
+			socketRef.current = io('http://localhost:5000/', {
 				query: { user_id: user._id },
+				transports: ['websocket'],
+				reconnection: true,
 			})
 
 			socketRef.current.on('connect', () => {
 				console.log(
-					'Socket connected in ChatPage:',
+					'Socket connected successfully with ID:',
 					socketRef.current?.id,
 				)
 				setIsConnected(true)
 			})
 
-			socketRef.current.on('disconnect', () => {
-				console.log('Socket disconnected in ChatPage')
-				setIsConnected(false)
-				// Có thể xử lý logic reconnect ở đây nếu muốn
-			})
-
-			socketRef.current.on(
-				'user_online',
-				(data: { user_id: string; timestamp: string }) => {
-					console.log('Component received user_online', data)
+			socketRef.current.on('user_online', (data) => {
+				console.log('Received user_online event:', data)
+				if (data.user_id !== user._id) {
+					// Không cập nhật nếu là chính mình
 					dispatch(
 						changeUserStatus({
 							userId: data.user_id,
 							status: 'online',
 						}),
 					)
-				},
-			)
+				}
+			})
 
-			socketRef.current.on(
-				'user_offline',
-				(data: { user_id: string; timestamp: string }) => {
-					console.log('Component received user_offline', data)
+			socketRef.current.on('user_offline', (data) => {
+				console.log('Received user_offline event:', data)
+				if (data.user_id !== user._id) {
+					// Không cập nhật nếu là chính mình
 					dispatch(
 						changeUserStatus({
 							userId: data.user_id,
 							status: 'offline',
 						}),
 					)
-				},
-			)
+				}
+			})
 
-			socketRef.current.on('new_message', (message: IMessage) => {
+			socketRef.current.on('disconnect', () => {
+				console.log('Socket disconnected')
+				setIsConnected(false)
+			})
+
+			socketRef.current.on('connect_error', (error) => {
+				console.error('Socket connection error:', error)
+			})
+
+			return () => {
+				console.log('Cleaning up socket connection...')
+				if (socketRef.current) {
+					socketRef.current.disconnect()
+				}
+			}
+		}
+	}, [user, dispatch])
+
+	useEffect(() => {
+		if (user) {
+			socketRef.current?.on('new_message', (message: IMessage) => {
 				console.log('Component received new_message', message)
 				dispatch(addMessage(message))
 			})
 
-			socketRef.current.on(
+			socketRef.current?.on(
 				'typing_status',
 				(data: {
 					roomId: string
@@ -88,7 +107,7 @@ export default function Home() {
 				},
 			)
 
-			socketRef.current.on(
+			socketRef.current?.on(
 				'message_read',
 				(data: {
 					roomId: string
@@ -106,14 +125,6 @@ export default function Home() {
 					)
 				},
 			)
-		}
-
-		// Cleanup function: Chạy khi component unmount hoặc token/user thay đổi
-		return () => {
-			if (socketRef) {
-				console.log('Disconnecting socket from ChatPage cleanup')
-				socketRef.current?.disconnect()
-			}
 		}
 	}, [currentRoomId, dispatch, user])
 
